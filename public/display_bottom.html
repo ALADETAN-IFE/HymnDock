@@ -20,31 +20,33 @@ body{
 
 #bottom-bg{
   position:fixed;
+  top:0;
   left:0;
   right:0;
   bottom:0;
-  height:48%;
+  height:100%;
   background:
     linear-gradient(
       to bottom,
-      rgba(0,0,0,0) 0%,
-      rgba(0,0,0,.12) 18%,
-      rgba(0,0,0,.52) 52%,
-      rgba(0,0,0,.88) 100%
+      rgba(0,0,0,0.2) 0%,
+      rgba(0,0,0,0.55) 50%,
+      rgba(0,0,0,0.85) 100%
     );
   pointer-events:none;
 }
 
 #stage{
   position:absolute;
+  top:0;
   left:0;
   right:0;
   bottom:0;
-  min-height:48%;
+  width:100%;
+  height:100%;
   display:flex;
-  align-items:flex-end;
+  align-items:center;
   justify-content:center;
-  padding:0 4vw 5.5vh;
+  padding:4vh 4vw;
   box-sizing:border-box;
 }
 
@@ -168,52 +170,24 @@ function applyState(d) {
   card.classList.add("live");
 }
 
-// Read session from URL: /display_bottom?session=abc123
+// Read session from URL: /display_bottom?session=abc123 (defaults to 'default')
 const params = new URLSearchParams(window.location.search);
-const SESSION = params.get("session");
+const SESSION = params.get("session") || "default";
 
-if (SESSION) {
-  // ── SSE (real-time push) ─────────────────────────────────────────────────
-  function connect() {
-    const es = new EventSource("/api/v1/state/events?session=" + encodeURIComponent(SESSION));
+function connect() {
+  const es = new EventSource("/api/v1/state/events?session=" + encodeURIComponent(SESSION));
 
-    es.onmessage = e => {
-      try { applyState(JSON.parse(e.data)); } catch {}
-    };
+  es.onmessage = e => {
+    try { applyState(JSON.parse(e.data)); } catch {}
+  };
 
-    es.onerror = () => {
-      es.close();
-      setTimeout(connect, 3000);
-    };
-  }
-
-  connect();
-} else {
-  // ── Fallback: poll /api/v1/state every 500ms ─────────────────────────────
-  let lastKey = "";
-
-  async function poll() {
-    try {
-      const response = await fetch("/api/v1/state?x=" + Date.now(), { cache:"no-store" });
-      const data = await response.json();
-      if (!data.ok) return;
-
-      const s = data.state;
-      const h = s.hymn;
-      const set = s.settings || {};
-      const key = (h ? h.url : "") + "|" + s.section + "|" + s.stanza + "|" + JSON.stringify(set);
-      if (key === lastKey) return;
-      lastKey = key;
-
-      applyState(data);
-    } catch(error) {
-      // Keep the last display on network errors
-    }
-  }
-
-  setInterval(poll, 500);
-  poll();
+  es.onerror = () => {
+    es.close();
+    setTimeout(connect, 3000);
+  };
 }
+
+connect();
 </script>
 
 </body>
