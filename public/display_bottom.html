@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hymn Display — Bottom</title>
+<style>
+html,body{
+  width:100%;
+  height:100%;
+  margin:0;
+  background:transparent;
+  overflow:hidden;
+}
+
+body{
+  font-family:"Segoe UI",Arial,sans-serif;
+  color:#fff;
+}
+
+#bottom-bg{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  height:48%;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(0,0,0,0) 0%,
+      rgba(0,0,0,.12) 18%,
+      rgba(0,0,0,.52) 52%,
+      rgba(0,0,0,.88) 100%
+    );
+  pointer-events:none;
+}
+
+#stage{
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:0;
+  min-height:48%;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  padding:0 4vw 5.5vh;
+  box-sizing:border-box;
+}
+
+#card{
+  width:min(var(--max-width,1500px),100%);
+  text-align:var(--align,center);
+  opacity:0;
+  transform:translateY(14px);
+  transition:opacity .18s ease,transform .18s ease;
+  text-shadow:
+    0 3px 12px rgba(0,0,0,.95),
+    0 1px 4px rgba(0,0,0,1);
+}
+
+#card.live{
+  opacity:1;
+  transform:translateY(0);
+}
+
+#meta{
+  font-size:20px;
+  font-weight:700;
+  letter-spacing:.04em;
+  margin-bottom:5px;
+  text-transform:uppercase;
+}
+
+#title{
+  font-size:25px;
+  font-weight:700;
+  margin-bottom:8px;
+}
+
+#section{
+  font-size:18px;
+  font-weight:600;
+  margin-bottom:5px;
+}
+
+#linebox{
+  font-size:var(--font-size,58px);
+  line-height:var(--line-height,1.28);
+  font-weight:600;
+  white-space:normal;
+}
+
+@media(max-width:1100px){
+  #linebox{font-size:46px}
+  #title{font-size:22px}
+  #meta{font-size:17px}
+}
+
+@media(max-width:700px){
+  #linebox{font-size:34px}
+  #title{font-size:18px}
+  #meta{font-size:14px}
+}
+</style>
+</head>
+<body>
+
+<div id="bottom-bg"></div>
+
+<div id="stage">
+  <div id="card">
+    <div id="meta"></div>
+    <div id="title"></div>
+    <div id="section"></div>
+    <div id="linebox"></div>
+  </div>
+</div>
+
+<script>
+let lastKey = "";
+
+async function poll(){
+  try{
+    const response = await fetch("/api/state?x=" + Date.now(), {
+      cache:"no-store"
+    });
+
+    const data = await response.json();
+
+    if(!data.ok) return;
+
+    const state = data.state;
+    const hymn = state.hymn;
+
+    if(!hymn || !state.section || state.stanza == null){
+      document.getElementById("card").classList.remove("live");
+      lastKey = "";
+      return;
+    }
+
+    const stanzas = hymn.sections[state.section] || [];
+    const stanza = stanzas.find(
+      item => Number(item.number) === Number(state.stanza)
+    );
+
+    if(!stanza){
+      document.getElementById("card").classList.remove("live");
+      return;
+    }
+
+    const settings = state.settings || {};
+
+    const key =
+      (hymn.url || "") + "|" +
+      state.section + "|" +
+      state.stanza + "|" +
+      JSON.stringify(settings);
+
+    if(key === lastKey) return;
+
+    lastKey = key;
+
+    document.getElementById("meta").textContent =
+      settings.show_hymn_number
+        ? "HYMN " + (hymn.number ?? "")
+        : "";
+
+    document.getElementById("title").textContent =
+      settings.show_title
+        ? (hymn.title || "")
+        : "";
+
+    document.getElementById("section").textContent =
+      settings.show_section
+        ? state.section + " • VERSE " + state.stanza
+        : "";
+
+    document.getElementById("linebox").innerHTML =
+      stanza.lines.map(escapeHtml).join("<br>");
+
+    document.documentElement.style.setProperty(
+      "--font-size",
+      (Number(settings.font_size) || 58) + "px"
+    );
+
+    document.documentElement.style.setProperty(
+      "--max-width",
+      (Number(settings.max_width) || 1500) + "px"
+    );
+
+    document.documentElement.style.setProperty(
+      "--line-height",
+      Number(settings.line_height) || 1.28
+    );
+
+    document.documentElement.style.setProperty(
+      "--align",
+      settings.text_align || "center"
+    );
+
+    document.getElementById("card").classList.add("live");
+
+  }catch(error){
+    // Keep the last successful display on screen during temporary network errors.
+  }
+}
+
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g, character => ({
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",
+    '"':"&quot;",
+    "'":"&#039;"
+  }[character]));
+}
+
+setInterval(poll, 500);
+poll();
+</script>
+
+</body>
+</html>
