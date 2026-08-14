@@ -25,42 +25,84 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:white}
   <div id="linebox"></div>
 </div></div>
 <script>
-let lastKey="";
-async function poll(){
-  try{
-    const r=await fetch("/api/v1/state?x="+Date.now(),{cache:"no-store"});
-    const d=await r.json();
-    if(!d.ok)return;
-    const s=d.state;
-    const h=s.hymn;
-    if(!h || !s.section || s.stanza==null){
-      $("card").classList.remove("live");
-      lastKey="";
-      return;
-    }
-    const stanzas=h.sections[s.section]||[];
-    const st=stanzas.find(x=>Number(x.number)===Number(s.stanza));
-    if(!st){$("card").classList.remove("live");return}
-    const set=s.settings||{};
-    const key=(h.url||"")+"|"+s.section+"|"+s.stanza+"|"+JSON.stringify(set);
-    if(key===lastKey)return;
-    lastKey=key;
+const $ = id => document.getElementById(id);
 
-    $("meta").textContent=set.show_hymn_number ? "HYMN "+(h.number??"") : "";
-    $("title").textContent=set.show_title ? (h.title||"") : "";
-    $("section").textContent=set.show_section ? s.section+" • VERSE "+s.stanza : "";
-    $("linebox").innerHTML=st.lines.map(x=>escapeHtml(x)).join("<br>");
-
-    document.documentElement.style.setProperty("--font-size",(Number(set.font_size)||58)+"px");
-    document.documentElement.style.setProperty("--max-width",(Number(set.max_width)||1500)+"px");
-    document.documentElement.style.setProperty("--line-height",(Number(set.line_height)||1.35));
-    document.documentElement.style.setProperty("--align",set.text_align||"center");
-    $("card").classList.add("live");
-  }catch(e){}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 }
-function $(id){return document.getElementById(id)}
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
-setInterval(poll,500); poll();
+
+function applyState(d) {
+  const s = d.state;
+  const h = s.hymn;
+
+  if (!h || !s.section || s.stanza == null) {
+    $("card").classList.remove("live");
+    return;
+  }
+
+  const stanzas = h.sections[s.section] || [];
+  const st = stanzas.find(x => Number(x.number) === Number(s.stanza));
+  if (!st) { $("card").classList.remove("live"); return; }
+
+  const set = s.settings || {};
+
+  $("meta").textContent = set.show_hymn_number ? "HYMN " + (h.number ?? "") : "";
+  $("title").textContent = set.show_title ? (h.title || "") : "";
+  $("section").textContent = set.show_section ? s.section + " • VERSE " + s.stanza : "";
+  $("linebox").innerHTML = st.lines.map(escapeHtml).join("<br>");
+
+  document.documentElement.style.setProperty("--font-size", (Number(set.font_size) || 58) + "px");
+  document.documentElement.style.setProperty("--max-width", (Number(set.max_width) || 1500) + "px");
+  document.documentElement.style.setProperty("--line-height", Number(set.line_height) || 1.35);
+  document.documentElement.style.setProperty("--align", set.text_align || "center");
+  $("card").classList.add("live");
+}
+
+// Read session from URL: /display?session=abc123
+const params = new URLSearchParams(window.location.search);
+const SESSION = params.get("session");
+
+if (SESSION) {
+  // ── SSE (real-time push) ─────────────────────────────────────────────────
+  function connect() {
+    const es = new EventSource("/api/v1/state/events?session=" + encodeURIComponent(SESSION));
+
+    es.onmessage = e => {
+      try { applyState(JSON.parse(e.data)); } catch {}
+    };
+
+    es.onerror = () => {
+      // On error, close and reconnect after 3s
+      es.close();
+      setTimeout(connect, 3000);
+    };
+  }
+
+  connect();
+} else {
+  // ── Fallback: poll /api/v1/state every 500ms (no session in URL) ─────────
+  let lastKey = "";
+
+  async function poll() {
+    try {
+      const r = await fetch("/api/v1/state?x=" + Date.now(), { cache: "no-store" });
+      const d = await r.json();
+      if (!d.ok) return;
+
+      const s = d.state;
+      const h = s.hymn;
+      const set = s.settings || {};
+      const key = (h ? h.url : "") + "|" + s.section + "|" + s.stanza + "|" + JSON.stringify(set);
+      if (key === lastKey) return;
+      lastKey = key;
+
+      applyState(d);
+    } catch {}
+  }
+
+  setInterval(poll, 500);
+  poll();
+}
 </script>
 </body>
 </html>

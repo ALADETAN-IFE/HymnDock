@@ -1,9 +1,11 @@
 import { Router } from "express";
-import { getHymn } from "./hymn.controller";
+import { getHymn, refreshHymn } from "./hymn.controller";
 import { methodNotAllowedHandler } from "@/middlewares";
 import { routeRegistry } from "@/docs";
 
 const router = Router();
+
+// ── GET /api/v1/hymn ─────────────────────────────────────────────────────────
 
 routeRegistry.register({
   method: "GET",
@@ -11,32 +13,29 @@ routeRegistry.register({
   handler: getHymn,
   docs: {
     tags: ["Hymn"],
-    summary: "Fetch and parse a hymn from Treasure Hymns",
+    summary: "Fetch and parse a hymn (SQLite-cached)",
     description:
-      "Fetches a hymn by number or direct URL from treasurehymns.com, " +
-      "parses its lyrics into sections and stanzas, and returns structured JSON.",
+      "Returns parsed hymn lyrics. First call scrapes treasurehymns.com and caches " +
+      "the result permanently in SQLite. All subsequent calls are near-instant.",
     parameters: [
       {
         name: "number",
         in: "query",
         required: false,
         schema: { type: "integer", example: 235 },
-        description: "Hymn number to search for on Treasure Hymns.",
+        description: "Hymn number to look up.",
       },
       {
         name: "url",
         in: "query",
         required: false,
-        schema: {
-          type: "string",
-          example: "https://treasurehymns.com/yor/hymn-100-...",
-        },
-        description: "Direct URL of the hymn page on treasurehymns.com.",
+        schema: { type: "string", example: "https://treasurehymns.com/yor/hymn-235-..." },
+        description: "Direct URL of the hymn page.",
       },
     ],
     responses: {
       "200": {
-        description: "Successfully parsed hymn data",
+        description: "Parsed hymn data",
         content: {
           "application/json": {
             schema: {
@@ -77,7 +76,38 @@ routeRegistry.register({
   },
 });
 
-router.use(methodNotAllowedHandler(["GET"]));
+// ── DELETE /api/v1/hymn/cache ─────────────────────────────────────────────────
+
+routeRegistry.register({
+  method: "DELETE",
+  path: "/api/v1/hymn/cache",
+  handler: refreshHymn,
+  docs: {
+    tags: ["Hymn"],
+    summary: "Bust cache and re-fetch a hymn",
+    description:
+      "Removes the hymn from the SQLite cache and immediately re-scrapes it. " +
+      "Use this if hymn lyrics have changed on Treasure Hymns.",
+    parameters: [
+      {
+        name: "url",
+        in: "query",
+        required: true,
+        schema: { type: "string" },
+        description: "The Treasure Hymns page URL to invalidate.",
+      },
+    ],
+    responses: {
+      "200": { description: "Re-fetched hymn data" },
+      "400": { description: "Error" },
+    },
+  },
+});
+
 router.get("/", getHymn);
+router.delete("/cache", refreshHymn);
+
+// Catch wrong methods on base route
+router.use("/", methodNotAllowedHandler(["GET"]));
 
 export default router;

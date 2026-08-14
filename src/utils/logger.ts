@@ -1,4 +1,4 @@
-import { ENV } from "@/config";
+import { ENV } from "@/config/env";
 
 // ANSI color codes for terminal output
 const colors = {

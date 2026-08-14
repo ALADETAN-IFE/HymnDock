@@ -21,6 +21,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "better-sqlite3": "^13.0.3",
     "dotenv": "^16.3.1",
     "express": "^5.2.1",
     "helmet": "^8.3.0",

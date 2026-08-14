@@ -21,6 +21,7 @@ button.primary{background:#3268b5}
 button.primary:hover{background:#3e79cc}
 button.active{background:#2f9e68}
 button.danger{background:#7d3e47}
+button.warning{background:#7a6200}
 .small{color:var(--muted);font-size:12px}
 .status{margin-top:8px;color:var(--muted);min-height:18px}
 .status.good{color:var(--good)}
@@ -36,6 +37,8 @@ button.danger{background:#7d3e47}
 .setting label{min-width:95px;color:var(--muted)}
 .setting input[type=number]{width:90px}
 .setting input[type=checkbox]{width:auto}
+.session-bar{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.session-id{font-family:monospace;font-size:12px;color:var(--muted);word-break:break-all}
 @media(max-width:520px){.grid{grid-template-columns:repeat(5,1fr)}.settings{grid-template-columns:1fr}.row{flex-wrap:wrap}}
 </style>
 </head>
@@ -43,6 +46,18 @@ button.danger{background:#7d3e47}
 <div class="wrap">
   <h1>🎵 Hymn Dock</h1>
 
+  <!-- Session info -->
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:8px">Session</div>
+    <div class="session-bar">
+      <span class="session-id" id="sessionDisplay"></span>
+      <button id="copyDisplay" title="Copy OBS display URL to clipboard">📋 Copy Display URL</button>
+      <button id="copyBottom" title="Copy OBS bottom display URL to clipboard">📋 Copy Bottom URL</button>
+    </div>
+    <div class="small" style="margin-top:6px">Paste the copied URL into OBS Browser Source. Each session is private — other operators won't interfere.</div>
+  </div>
+
+  <!-- Hymn search -->
   <div class="card">
     <div class="row">
       <input id="number" inputmode="numeric" placeholder="Enter hymn number, e.g. 235">
@@ -55,8 +70,12 @@ button.danger{background:#7d3e47}
     <div id="status" class="status">Ready.</div>
   </div>
 
+  <!-- Hymn stanza picker -->
   <div class="card" id="hymnCard" hidden>
-    <div class="hymn-title" id="title"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <div class="hymn-title" id="title" style="flex:1"></div>
+      <button class="warning" id="refresh" title="Force re-scrape this hymn from the website">🔄 Refresh</button>
+    </div>
     <div class="small" id="source"></div>
     <div id="sections"></div>
     <div class="row" style="margin-top:10px">
@@ -66,6 +85,7 @@ button.danger{background:#7d3e47}
     </div>
   </div>
 
+  <!-- Display settings -->
   <div class="card">
     <div style="font-weight:700;margin-bottom:8px">Display Settings</div>
     <div class="settings">
@@ -82,25 +102,74 @@ button.danger{background:#7d3e47}
   </div>
 
   <div class="small" style="padding:2px 3px">
-    Tip: Load a hymn, then click a stanza. The OBS Browser Source updates automatically.
+    Tip: Load a hymn, then click a stanza. The OBS Browser Source updates instantly.
   </div>
 </div>
 
 <script>
+// ── Session management ──────────────────────────────────────────────────────
+const SESSION_KEY = "hymnDockSessionId";
+
+function generateUUID() {
+  if (crypto && crypto.randomUUID) return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+let SESSION_ID = localStorage.getItem(SESSION_KEY);
+if (!SESSION_ID) {
+  SESSION_ID = generateUUID();
+  localStorage.setItem(SESSION_KEY, SESSION_ID);
+}
+
+// Display session info
+document.getElementById("sessionDisplay").textContent = "Session: " + SESSION_ID;
+
+function getOrigin() {
+  return window.location.origin;
+}
+
+document.getElementById("copyDisplay").onclick = () => {
+  const url = `${getOrigin()}/display?session=${SESSION_ID}`;
+  navigator.clipboard.writeText(url).then(() => status("Display URL copied! Paste into OBS.", "good")).catch(() => {
+    prompt("Copy this URL:", url);
+  });
+};
+
+document.getElementById("copyBottom").onclick = () => {
+  const url = `${getOrigin()}/display_bottom?session=${SESSION_ID}`;
+  navigator.clipboard.writeText(url).then(() => status("Bottom URL copied! Paste into OBS.", "good")).catch(() => {
+    prompt("Copy this URL:", url);
+  });
+};
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
 let hymn = null;
 const $ = id => document.getElementById(id);
 
-function status(msg, kind=""){ $("status").textContent=msg; $("status").className="status "+kind; }
+function status(msg, kind="") {
+  $("status").textContent = msg;
+  $("status").className = "status " + kind;
+}
+
+function qs() {
+  return "?session=" + encodeURIComponent(SESSION_ID);
+}
 
 async function api(url, opts={}) {
-  const r = await fetch(url, opts);
+  const sep = url.includes("?") ? "&" : "?";
+  const r = await fetch(url + sep + "session=" + encodeURIComponent(SESSION_ID), opts);
   const data = await r.json();
   if (!data.ok) throw new Error(data.error || "Request failed");
   return data;
 }
 
-async function loadHymn(params) {
-  status("Loading…");
+// ── Hymn loading ─────────────────────────────────────────────────────────────
+
+async function loadHymn(params, fromCache=false) {
+  status(fromCache ? "Loading from cache…" : "Loading (first time may take a few seconds)…");
   try {
     const qs = new URLSearchParams(params).toString();
     const data = await api("/api/v1/hymn?" + qs);
@@ -202,6 +271,29 @@ async function navigate(dir) {
   await loadHymn({url});
 }
 
+// ── Refresh (cache bust) ──────────────────────────────────────────────────────
+
+$("refresh").onclick = async () => {
+  if (!hymn) return;
+  status("Re-fetching hymn from website…");
+  try {
+    const r = await fetch(
+      "/api/v1/hymn/cache?session=" + encodeURIComponent(SESSION_ID) +
+      "&url=" + encodeURIComponent(hymn.url),
+      { method: "DELETE" }
+    );
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    hymn = data.hymn;
+    renderHymn();
+    status("Refreshed: " + hymn.title, "good");
+  } catch(e) {
+    status("Refresh failed: " + e.message, "error");
+  }
+};
+
+// ── Event listeners ───────────────────────────────────────────────────────────
+
 $("load").onclick = () => {
   const n = $("number").value.trim();
   if (!n) { status("Enter a hymn number.", "error"); return; }
@@ -220,7 +312,8 @@ $("clear").onclick = clearDisplay;
   $(id).addEventListener("change", pushSettings);
 });
 
-// Load initial settings from server state
+// ── Restore state on load ─────────────────────────────────────────────────────
+
 (async () => {
   try {
     const data = await api("/api/v1/state");

@@ -118,106 +118,102 @@ body{
 </div>
 
 <script>
-let lastKey = "";
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
+}
 
-async function poll(){
-  try{
-    const response = await fetch("/api/v1/state?x=" + Date.now(), {
-      cache:"no-store"
-    });
+function applyState(d) {
+  const state = d.state;
+  const hymn = state.hymn;
+  const card = document.getElementById("card");
 
-    const data = await response.json();
-
-    if(!data.ok) return;
-
-    const state = data.state;
-    const hymn = state.hymn;
-
-    if(!hymn || !state.section || state.stanza == null){
-      document.getElementById("card").classList.remove("live");
-      lastKey = "";
-      return;
-    }
-
-    const stanzas = hymn.sections[state.section] || [];
-    const stanza = stanzas.find(
-      item => Number(item.number) === Number(state.stanza)
-    );
-
-    if(!stanza){
-      document.getElementById("card").classList.remove("live");
-      return;
-    }
-
-    const settings = state.settings || {};
-
-    const key =
-      (hymn.url || "") + "|" +
-      state.section + "|" +
-      state.stanza + "|" +
-      JSON.stringify(settings);
-
-    if(key === lastKey) return;
-
-    lastKey = key;
-
-    document.getElementById("meta").textContent =
-      settings.show_hymn_number
-        ? "HYMN " + (hymn.number ?? "")
-        : "";
-
-    document.getElementById("title").textContent =
-      settings.show_title
-        ? (hymn.title || "")
-        : "";
-
-    document.getElementById("section").textContent =
-      settings.show_section
-        ? state.section + " • VERSE " + state.stanza
-        : "";
-
-    document.getElementById("linebox").innerHTML =
-      stanza.lines.map(escapeHtml).join("<br>");
-
-    document.documentElement.style.setProperty(
-      "--font-size",
-      (Number(settings.font_size) || 58) + "px"
-    );
-
-    document.documentElement.style.setProperty(
-      "--max-width",
-      (Number(settings.max_width) || 1500) + "px"
-    );
-
-    document.documentElement.style.setProperty(
-      "--line-height",
-      Number(settings.line_height) || 1.28
-    );
-
-    document.documentElement.style.setProperty(
-      "--align",
-      settings.text_align || "center"
-    );
-
-    document.getElementById("card").classList.add("live");
-
-  }catch(error){
-    // Keep the last successful display on screen during temporary network errors.
+  if (!hymn || !state.section || state.stanza == null) {
+    card.classList.remove("live");
+    return;
   }
+
+  const stanzas = hymn.sections[state.section] || [];
+  const stanza = stanzas.find(item => Number(item.number) === Number(state.stanza));
+  if (!stanza) { card.classList.remove("live"); return; }
+
+  const settings = state.settings || {};
+
+  document.getElementById("meta").textContent =
+    settings.show_hymn_number ? "HYMN " + (hymn.number ?? "") : "";
+
+  document.getElementById("title").textContent =
+    settings.show_title ? (hymn.title || "") : "";
+
+  document.getElementById("section").textContent =
+    settings.show_section ? state.section + " • VERSE " + state.stanza : "";
+
+  document.getElementById("linebox").innerHTML =
+    stanza.lines.map(escapeHtml).join("<br>");
+
+  document.documentElement.style.setProperty(
+    "--font-size", (Number(settings.font_size) || 58) + "px"
+  );
+  document.documentElement.style.setProperty(
+    "--max-width", (Number(settings.max_width) || 1500) + "px"
+  );
+  document.documentElement.style.setProperty(
+    "--line-height", Number(settings.line_height) || 1.28
+  );
+  document.documentElement.style.setProperty(
+    "--align", settings.text_align || "center"
+  );
+
+  card.classList.add("live");
 }
 
-function escapeHtml(value){
-  return String(value).replace(/[&<>"']/g, character => ({
-    "&":"&amp;",
-    "<":"&lt;",
-    ">":"&gt;",
-    '"':"&quot;",
-    "'":"&#039;"
-  }[character]));
-}
+// Read session from URL: /display_bottom?session=abc123
+const params = new URLSearchParams(window.location.search);
+const SESSION = params.get("session");
 
-setInterval(poll, 500);
-poll();
+if (SESSION) {
+  // ── SSE (real-time push) ─────────────────────────────────────────────────
+  function connect() {
+    const es = new EventSource("/api/v1/state/events?session=" + encodeURIComponent(SESSION));
+
+    es.onmessage = e => {
+      try { applyState(JSON.parse(e.data)); } catch {}
+    };
+
+    es.onerror = () => {
+      es.close();
+      setTimeout(connect, 3000);
+    };
+  }
+
+  connect();
+} else {
+  // ── Fallback: poll /api/v1/state every 500ms ─────────────────────────────
+  let lastKey = "";
+
+  async function poll() {
+    try {
+      const response = await fetch("/api/v1/state?x=" + Date.now(), { cache:"no-store" });
+      const data = await response.json();
+      if (!data.ok) return;
+
+      const s = data.state;
+      const h = s.hymn;
+      const set = s.settings || {};
+      const key = (h ? h.url : "") + "|" + s.section + "|" + s.stanza + "|" + JSON.stringify(set);
+      if (key === lastKey) return;
+      lastKey = key;
+
+      applyState(data);
+    } catch(error) {
+      // Keep the last display on network errors
+    }
+  }
+
+  setInterval(poll, 500);
+  poll();
+}
 </script>
 
 </body>

@@ -1,11 +1,41 @@
 import { Router } from "express";
-import { readState, writeState } from "./state.controller";
+import { readState, writeState, sseStream } from "./state.controller";
 import { methodNotAllowedHandler } from "@/middlewares";
 import { routeRegistry } from "@/docs";
 
 const router = Router();
 
-// ── GET /api/v1/state ─────────────────────────────────────────────────────────
+// ── GET /api/v1/state/events  (SSE — must be registered before the base route) ──
+
+routeRegistry.register({
+  method: "GET",
+  path: "/api/v1/state/events",
+  handler: sseStream,
+  docs: {
+    tags: ["State"],
+    summary: "SSE stream for real-time display updates",
+    description:
+      "Opens a Server-Sent Events stream. The display page connects once and " +
+      "receives instant pushes whenever the dock updates state for this session.",
+    parameters: [
+      {
+        name: "session",
+        in: "query",
+        required: true,
+        schema: { type: "string" },
+        description: "Session UUID from the dock.",
+      },
+    ],
+    responses: {
+      "200": { description: "text/event-stream — keeps connection open" },
+      "400": { description: "Missing session parameter" },
+    },
+  },
+});
+
+router.get("/events", sseStream);
+
+// ── GET /api/v1/state ──────────────────────────────────────────────────────────
 
 routeRegistry.register({
   method: "GET",
@@ -13,27 +43,27 @@ routeRegistry.register({
   handler: readState,
   docs: {
     tags: ["State"],
-    summary: "Read current display state",
-    description:
-      "Returns the in-memory state that the OBS Browser Source polls to update the lyrics display.",
+    summary: "Read session display state",
+    description: "Returns the current hymn/section/stanza/settings for this session.",
+    parameters: [
+      {
+        name: "session",
+        in: "query",
+        required: true,
+        schema: { type: "string" },
+        description: "Session UUID.",
+      },
+    ],
     responses: {
       "200": {
-        description: "Current application state",
+        description: "Current state",
         content: {
           "application/json": {
             schema: {
               type: "object",
               properties: {
                 ok: { type: "boolean", example: true },
-                state: {
-                  type: "object",
-                  properties: {
-                    hymn: { type: "object", nullable: true },
-                    section: { type: "string", nullable: true },
-                    stanza: { type: "integer", nullable: true },
-                    settings: { type: "object" },
-                  },
-                },
+                state: { type: "object" },
               },
             },
           },
@@ -43,7 +73,7 @@ routeRegistry.register({
   },
 });
 
-// ── POST /api/v1/state ────────────────────────────────────────────────────────
+// ── POST /api/v1/state ─────────────────────────────────────────────────────────
 
 routeRegistry.register({
   method: "POST",
@@ -51,11 +81,18 @@ routeRegistry.register({
   handler: writeState,
   docs: {
     tags: ["State"],
-    summary: "Update display state",
+    summary: "Update session display state",
     description:
-      "Partially updates the in-memory state. " +
-      "The OBS Dock uses this to push the currently selected hymn / stanza " +
-      "so the Browser Source can display it live.",
+      "Patches the session state and pushes the update to all connected SSE clients immediately.",
+    parameters: [
+      {
+        name: "session",
+        in: "query",
+        required: true,
+        schema: { type: "string" },
+        description: "Session UUID.",
+      },
+    ],
     requestBody: {
       required: true,
       content: {
@@ -73,34 +110,8 @@ routeRegistry.register({
       },
     },
     responses: {
-      "200": {
-        description: "Updated state",
-        content: {
-          "application/json": {
-            schema: {
-              type: "object",
-              properties: {
-                ok: { type: "boolean", example: true },
-                state: { type: "object" },
-              },
-            },
-          },
-        },
-      },
-      "400": {
-        description: "Parse error",
-        content: {
-          "application/json": {
-            schema: {
-              type: "object",
-              properties: {
-                ok: { type: "boolean", example: false },
-                error: { type: "string" },
-              },
-            },
-          },
-        },
-      },
+      "200": { description: "Updated state" },
+      "400": { description: "Error" },
     },
   },
 });
