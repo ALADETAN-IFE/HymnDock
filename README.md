@@ -1,4 +1,4 @@
-# hymn_dock_ts
+# HYMN DOCK
 
 A monolithic backend API application.
 

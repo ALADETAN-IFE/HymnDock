@@ -1,8 +1,8 @@
 /**
  * state.controller.ts
  *
- * Handles GET /api/state and POST /api/state.
- * Mirrors Python's Handler.do_GET() and do_POST() branches for /api/state.
+ * Handles GET /api/v1/state and POST /api/v1/state.
+ * Mirrors Python's Handler.do_GET() and do_POST() branches for /api/v1/state.
  */
 
 import { Request, Response } from "express";

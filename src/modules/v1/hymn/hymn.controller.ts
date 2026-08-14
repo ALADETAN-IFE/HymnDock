@@ -1,8 +1,8 @@
 /**
  * hymn.controller.ts
  *
- * Handles GET /api/hymn requests.
- * Mirrors Python's Handler.do_GET() branch for /api/hymn.
+ * Handles GET /api/v1/hymn requests.
+ * Mirrors Python's Handler.do_GET() branch for /api/v1/hymn.
  */
 
 import { Request, Response } from "express";

@@ -5,11 +5,11 @@ import { routeRegistry } from "@/docs";
 
 const router = Router();
 
-// ── GET /api/state ─────────────────────────────────────────────────────────
+// ── GET /api/v1/state ─────────────────────────────────────────────────────────
 
 routeRegistry.register({
   method: "GET",
-  path: "/api/state",
+  path: "/api/v1/state",
   handler: readState,
   docs: {
     tags: ["State"],
@@ -43,11 +43,11 @@ routeRegistry.register({
   },
 });
 
-// ── POST /api/state ────────────────────────────────────────────────────────
+// ── POST /api/v1/state ────────────────────────────────────────────────────────
 
 routeRegistry.register({
   method: "POST",
-  path: "/api/state",
+  path: "/api/v1/state",
   handler: writeState,
   docs: {
     tags: ["State"],

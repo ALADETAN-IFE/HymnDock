@@ -103,7 +103,7 @@ async function loadHymn(params) {
   status("Loading…");
   try {
     const qs = new URLSearchParams(params).toString();
-    const data = await api("/api/hymn?" + qs);
+    const data = await api("/api/v1/hymn?" + qs);
     hymn = data.hymn;
     renderHymn();
     status("Loaded: " + hymn.title, "good");
@@ -151,7 +151,7 @@ async function selectStanza(section, number, btn) {
   activeBtn = btn;
   btn.classList.add("active");
   try {
-    await api("/api/state", {
+    await api("/api/v1/state", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({hymn, section, stanza: number})
@@ -163,7 +163,7 @@ async function selectStanza(section, number, btn) {
 
 async function clearDisplay() {
   try {
-    await api("/api/state", {
+    await api("/api/v1/state", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({hymn: null, section: null, stanza: null})
@@ -187,7 +187,7 @@ async function pushSettings() {
     text_align: $("align").value
   };
   try {
-    await api("/api/state", {
+    await api("/api/v1/state", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({settings})
@@ -223,7 +223,7 @@ $("clear").onclick = clearDisplay;
 // Load initial settings from server state
 (async () => {
   try {
-    const data = await api("/api/state");
+    const data = await api("/api/v1/state");
     const s = data.state.settings;
     if (s) {
       $("showTitle").checked = s.show_title ?? true;

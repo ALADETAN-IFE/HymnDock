@@ -28,7 +28,7 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:white}
 let lastKey="";
 async function poll(){
   try{
-    const r=await fetch("/api/state?x="+Date.now(),{cache:"no-store"});
+    const r=await fetch("/api/v1/state?x="+Date.now(),{cache:"no-store"});
     const d=await r.json();
     if(!d.ok)return;
     const s=d.state;

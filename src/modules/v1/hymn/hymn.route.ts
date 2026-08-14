@@ -7,7 +7,7 @@ const router = Router();
 
 routeRegistry.register({
   method: "GET",
-  path: "/api/hymn",
+  path: "/api/v1/hymn",
   handler: getHymn,
   docs: {
     tags: ["Hymn"],
@@ -29,7 +29,7 @@ routeRegistry.register({
         required: false,
         schema: {
           type: "string",
-          example: "https://treasurehymns.com/yor/hymn-235-...",
+          example: "https://treasurehymns.com/yor/hymn-100-...",
         },
         description: "Direct URL of the hymn page on treasurehymns.com.",
       },
