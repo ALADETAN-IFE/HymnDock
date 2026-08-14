@@ -18,13 +18,9 @@ import type { AppState, DisplaySettings, HymnData } from "../hymn/hymn.types";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function resolveSession(req: Request, res: Response): string | null {
+function resolveSession(req: Request, res: Response): string {
   const id = (req.query["session"] as string | undefined)?.trim();
-  if (!id) {
-    res.status(400).json({ ok: false, error: "Missing ?session= query parameter." });
-    return null;
-  }
-  return id;
+  return id || "default";
 }
 
 // ── GET /api/v1/state ────────────────────────────────────────────────────────

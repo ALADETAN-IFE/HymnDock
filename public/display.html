@@ -58,51 +58,24 @@ function applyState(d) {
   $("card").classList.add("live");
 }
 
-// Read session from URL: /display?session=abc123
+// Read session from URL: /display?session=abc123 (defaults to 'default')
 const params = new URLSearchParams(window.location.search);
-const SESSION = params.get("session");
+const SESSION = params.get("session") || "default";
 
-if (SESSION) {
-  // ── SSE (real-time push) ─────────────────────────────────────────────────
-  function connect() {
-    const es = new EventSource("/api/v1/state/events?session=" + encodeURIComponent(SESSION));
+function connect() {
+  const es = new EventSource("/api/v1/state/events?session=" + encodeURIComponent(SESSION));
 
-    es.onmessage = e => {
-      try { applyState(JSON.parse(e.data)); } catch {}
-    };
+  es.onmessage = e => {
+    try { applyState(JSON.parse(e.data)); } catch {}
+  };
 
-    es.onerror = () => {
-      // On error, close and reconnect after 3s
-      es.close();
-      setTimeout(connect, 3000);
-    };
-  }
-
-  connect();
-} else {
-  // ── Fallback: poll /api/v1/state every 500ms (no session in URL) ─────────
-  let lastKey = "";
-
-  async function poll() {
-    try {
-      const r = await fetch("/api/v1/state?x=" + Date.now(), { cache: "no-store" });
-      const d = await r.json();
-      if (!d.ok) return;
-
-      const s = d.state;
-      const h = s.hymn;
-      const set = s.settings || {};
-      const key = (h ? h.url : "") + "|" + s.section + "|" + s.stanza + "|" + JSON.stringify(set);
-      if (key === lastKey) return;
-      lastKey = key;
-
-      applyState(d);
-    } catch {}
-  }
-
-  setInterval(poll, 500);
-  poll();
+  es.onerror = () => {
+    es.close();
+    setTimeout(connect, 3000);
+  };
 }
+
+connect();
 </script>
 </body>
 </html>
