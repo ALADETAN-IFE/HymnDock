@@ -79,7 +79,7 @@ npm run build
 npm start
 ```
 
-Default server URL: `https://hymndock.onrender.com`
+Default server URL: `https://hymn-dock.ifecodes.xyz`
 
 ---
 
@@ -89,14 +89,14 @@ Default server URL: `https://hymndock.onrender.com`
 1. Open OBS Studio.
 2. Go to **Docks** → **Custom Browser Docks...**
 3. Set **Dock Name** to `HymnDock`.
-4. Set **URL** to `https://hymndock.onrender.com/dock` (or `https://hymndock.onrender.com/`).
+4. Set **URL** to `https://hymn-dock.ifecodes.xyz/dock` (or `https://hymn-dock.ifecodes.xyz/`).
 5. Click **Apply**.
 
 ### 2. Browser Source Overlay in OBS
 1. In your OBS Scene, add a new **Browser** source named `Hymn Display`.
 2. Set **URL** to:
-   - `https://hymndock.onrender.com/display` (for standard centered lyrics)
-   - **OR** `https://hymndock.onrender.com/display_bottom` (for full-screen gradient overlay)
+   - `https://hymn-dock.ifecodes.xyz/display` (for standard centered lyrics)
+   - **OR** `https://hymn-dock.ifecodes.xyz/display_bottom` (for full-screen gradient overlay)
 3. Set **Width**: `1920` and **Height**: `1080`.
 4. Click **OK**.
 
