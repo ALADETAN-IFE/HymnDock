@@ -14,6 +14,29 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:white}
 #title{font-size:28px;font-weight:700;margin-bottom:12px}
 #section{font-size:20px;font-weight:600;margin-bottom:5px}
 #linebox{font-size:var(--font-size,58px);line-height:var(--line-height,1.35);font-weight:600;white-space:normal}
+
+/* Theme Presets */
+#card.theme-glass{
+  background: rgba(18, 22, 31, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 28px 36px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+}
+#card.theme-gold #meta, #card.theme-gold #title{
+  color: #f5c518;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.9);
+}
+#card.theme-contrast{
+  background: #000000;
+  color: #ffffff;
+  padding: 24px 32px;
+  border-radius: 12px;
+  border: 2px solid #333333;
+}
+
 @media(max-width:900px){#linebox{font-size:44px}#title{font-size:24px}#meta{font-size:18px}}
 </style>
 </head>
@@ -31,18 +54,34 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 }
 
+function loadFont(fontName) {
+  if (!fontName || fontName === "Segoe UI") {
+    document.body.style.fontFamily = '"Segoe UI", Arial, sans-serif';
+    return;
+  }
+  const id = "gfont-" + fontName.replace(/\s+/g, "-");
+  if (!document.getElementById(id)) {
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontName)}:wght@400;600;700;800&display=swap`;
+    document.head.appendChild(link);
+  }
+  document.body.style.fontFamily = `'${fontName}', "Segoe UI", sans-serif`;
+}
+
 function applyState(d) {
   const s = d.state;
   const h = s.hymn;
 
   if (!h || !s.section || s.stanza == null) {
-    $("card").classList.remove("live");
+    $("card").className = "";
     return;
   }
 
   const stanzas = h.sections[s.section] || [];
   const st = stanzas.find(x => Number(x.number) === Number(s.stanza));
-  if (!st) { $("card").classList.remove("live"); return; }
+  if (!st) { $("card").className = ""; return; }
 
   const set = s.settings || {};
 
@@ -55,7 +94,21 @@ function applyState(d) {
   document.documentElement.style.setProperty("--max-width", (Number(set.max_width) || 1500) + "px");
   document.documentElement.style.setProperty("--line-height", Number(set.line_height) || 1.35);
   document.documentElement.style.setProperty("--align", set.text_align || "center");
-  $("card").classList.add("live");
+
+  // Load font
+  loadFont(set.font_family);
+
+  // Set Theme
+  const themeClass = set.theme ? "theme-" + set.theme : "theme-minimal";
+  $("card").className = "live " + themeClass;
+
+  if (set.bg_image) {
+    document.body.style.backgroundImage = `url("${set.bg_image}")`;
+    document.body.style.backgroundSize = "cover";
+    document.body.style.backgroundPosition = "center";
+  } else {
+    document.body.style.backgroundImage = "none";
+  }
 }
 
 // Read session from URL: /display?session=abc123 (defaults to 'default')

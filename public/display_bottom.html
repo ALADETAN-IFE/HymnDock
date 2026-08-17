@@ -66,6 +66,28 @@ body{
   transform:translateY(0);
 }
 
+/* Theme Presets */
+#card.theme-glass{
+  background: rgba(18, 22, 31, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 28px 36px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+}
+#card.theme-gold #meta, #card.theme-gold #title{
+  color: #f5c518;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.9);
+}
+#card.theme-contrast{
+  background: #000000;
+  color: #ffffff;
+  padding: 24px 32px;
+  border-radius: 12px;
+  border: 2px solid #333333;
+}
+
 #meta{
   font-size:20px;
   font-weight:700;
@@ -126,19 +148,35 @@ function escapeHtml(value) {
   }[c]));
 }
 
+function loadFont(fontName) {
+  if (!fontName || fontName === "Segoe UI") {
+    document.body.style.fontFamily = '"Segoe UI", Arial, sans-serif';
+    return;
+  }
+  const id = "gfont-" + fontName.replace(/\s+/g, "-");
+  if (!document.getElementById(id)) {
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontName)}:wght@400;600;700;800&display=swap`;
+    document.head.appendChild(link);
+  }
+  document.body.style.fontFamily = `'${fontName}', "Segoe UI", sans-serif`;
+}
+
 function applyState(d) {
   const state = d.state;
   const hymn = state.hymn;
   const card = document.getElementById("card");
 
   if (!hymn || !state.section || state.stanza == null) {
-    card.classList.remove("live");
+    card.className = "";
     return;
   }
 
   const stanzas = hymn.sections[state.section] || [];
   const stanza = stanzas.find(item => Number(item.number) === Number(state.stanza));
-  if (!stanza) { card.classList.remove("live"); return; }
+  if (!stanza) { card.className = ""; return; }
 
   const settings = state.settings || {};
 
@@ -167,7 +205,18 @@ function applyState(d) {
     "--align", settings.text_align || "center"
   );
 
-  card.classList.add("live");
+  loadFont(settings.font_family);
+
+  const themeClass = settings.theme ? "theme-" + settings.theme : "theme-minimal";
+  card.className = "live " + themeClass;
+
+  if (settings.bg_image) {
+    document.body.style.backgroundImage = `url("${settings.bg_image}")`;
+    document.body.style.backgroundSize = "cover";
+    document.body.style.backgroundPosition = "center";
+  } else {
+    document.body.style.backgroundImage = "none";
+  }
 }
 
 // Read session from URL: /display_bottom?session=abc123 (defaults to 'default')

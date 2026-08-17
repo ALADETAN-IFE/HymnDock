@@ -11,7 +11,7 @@
  */
 
 import { Parser } from "htmlparser2";
-import type { HymnData, Sections, Stanza } from "./hymn.types";
+import type { HymnData, Sections, Stanza, SearchResultItem } from "./hymn.types";
 import { db } from "@/config";
 
 // ---------------------------------------------------------------------------
@@ -155,8 +155,10 @@ function normalizeText(text: string | null | undefined): string {
 
 function hymnNumberFromText(text: string | null | undefined): number | null {
   if (!text) return null;
-  const match = /\bhymn\s*[-#]?\s*(\d{1,4})\b/i.exec(text);
-  return match ? parseInt(match[1], 10) : null;
+  const match = /\b(?:hymn|orin)\s*[-#]?\s*(\d{1,4})\b/i.exec(text);
+  if (match) return parseInt(match[1], 10);
+  const fallback = /\b(\d{1,4})\b/.exec(text);
+  return fallback ? parseInt(fallback[1], 10) : null;
 }
 
 function isTreasureHymnUrl(url: string | null): boolean {
@@ -165,46 +167,88 @@ function isTreasureHymnUrl(url: string | null): boolean {
     const parsed = new URL(url);
     const host = parsed.hostname.toLowerCase();
     if (host !== "treasurehymns.com" && host !== "www.treasurehymns.com") return false;
-    return /\/hymn-\d{1,4}(?:-|\/)/.test(parsed.pathname.toLowerCase());
+
+    const path = parsed.pathname.toLowerCase();
+
+    // Ignore non-hymn pages (admin, categories, tags, feed, static pages)
+    if (
+      path.startsWith("/wp-admin") ||
+      path.startsWith("/wp-content") ||
+      path.startsWith("/category/") ||
+      path.startsWith("/tag/") ||
+      path.startsWith("/page/") ||
+      path.startsWith("/feed") ||
+      path === "/" ||
+      path === "" ||
+      path.includes("/contact") ||
+      path.includes("/about") ||
+      path.includes("/privacy")
+    ) {
+      return false;
+    }
+
+    return true;
   } catch {
     return false;
   }
 }
 
 // ---------------------------------------------------------------------------
-// SQLite-backed findHymnUrl
+// SQLite-backed findHymnUrl & searchHymns (supports hymn number or title/keyword search across English & Yoruba)
 // ---------------------------------------------------------------------------
 
-const stmtGetUrlCache = db.prepare<[number], { url: string }>(
+const stmtGetUrlCache = db.prepare<[string], { url: string }>(
   "SELECT url FROM hymn_url_cache WHERE number = ?",
 );
-const stmtSetUrlCache = db.prepare<[number, string]>(
+const stmtSetUrlCache = db.prepare<[string, string]>(
   "INSERT OR REPLACE INTO hymn_url_cache (number, url, cached_at) VALUES (?, ?, unixepoch())",
 );
 
-export async function findHymnUrl(number: number): Promise<string | null> {
-  // 1. Check SQLite cache first
-  const cached = stmtGetUrlCache.get(number);
-  if (cached) return cached.url;
+export async function searchHymns(
+  queryInput: number | string,
+  lang: string = "all",
+): Promise<SearchResultItem[]> {
+  const queryStr = String(queryInput).trim();
+  const numericVal = typeof queryInput === "number" ? queryInput : parseInt(queryStr, 10);
+  const isNumeric = !isNaN(numericVal) && /^\d+$/.test(queryStr);
 
-  // 2. Cache miss — search the site
-  const searchQueries = [String(number), `hymn ${number}`, `hymn-${number}`];
+  const searchQueries = isNumeric
+    ? [String(numericVal), `hymn ${numericVal}`, `hymn-${numericVal}`, `orin ${numericVal}`]
+    : [queryStr];
+
   const searchUrls: string[] = [];
   const seen = new Set<string>();
 
-  for (const query of searchQueries) {
-    const encoded = encodeURIComponent(query);
-    const candidates = [
-      `${BASE}/?s=${encoded}`,
-      `${BASE}/yor/?s=${encoded}`,
-      `${BASE}/yor/youruba-iwe-orin-mimo-anglican-hymnbook/?s=${encoded}`,
-    ];
+  for (const q of searchQueries) {
+    const encoded = encodeURIComponent(q);
+    const candidates: string[] = [];
+    if (lang === "eng") {
+      candidates.push(
+        `${BASE}/en/?s=${encoded}`,
+        `${BASE}/eng/?s=${encoded}`,
+        `${BASE}/english-hymns/?s=${encoded}`,
+        `${BASE}/?s=${encoded}`,
+      );
+    } else if (lang === "yor") {
+      candidates.push(
+        `${BASE}/yor/?s=${encoded}`,
+        `${BASE}/yoruba/?s=${encoded}`,
+        `${BASE}/yor/youruba-iwe-orin-mimo-anglican-hymnbook/?s=${encoded}`,
+        `${BASE}/?s=${encoded}`,
+      );
+    } else {
+      candidates.push(
+        `${BASE}/?s=${encoded}`,
+        `${BASE}/en/?s=${encoded}`,
+        `${BASE}/yor/?s=${encoded}`,
+      );
+    }
     for (const u of candidates) {
       if (!seen.has(u)) { seen.add(u); searchUrls.push(u); }
     }
   }
 
-  const scored: Array<[number, string]> = [];
+  const scoredMap = new Map<string, { title: string; url: string; number: number | null; score: number }>();
 
   for (const searchUrl of searchUrls) {
     let html: string;
@@ -216,33 +260,78 @@ export async function findHymnUrl(number: number): Promise<string | null> {
       const href = cleanUrl(link.href);
       if (!isTreasureHymnUrl(href)) continue;
 
-      const linkNumber = hymnNumberFromText(link.text);
-      const hrefDecoded = decodeURIComponent(new URL(href!).pathname);
-      const hrefNumber = hymnNumberFromText(hrefDecoded);
+      if (lang === "eng" && href!.toLowerCase().includes("/yor/")) continue;
+      if (lang === "yor" && (href!.toLowerCase().includes("/en/") || href!.toLowerCase().includes("/eng/") || href!.toLowerCase().includes("/english"))) continue;
 
-      let score = 0;
-      if (linkNumber === number) score += 100;
-      if (hrefNumber === number) score += 80;
       const normText = normalizeText(link.text);
-      if (normText.includes(`hymn ${number}`)) score += 40;
-      if (normalizeText(href).includes(`hymn-${number}-`)) score += 30;
-      if (normText.includes("lyrics") || normalizeText(href).includes("lyrics")) score += 10;
+      const normHref = normalizeText(href);
+      let score = 0;
 
-      if (score > 0) scored.push([score, href!]);
+      if (isNumeric) {
+        const linkNumber = hymnNumberFromText(link.text);
+        const hrefDecoded = decodeURIComponent(new URL(href!).pathname);
+        const hrefNumber = hymnNumberFromText(hrefDecoded);
+        let numMatch = false;
+
+        if (linkNumber === numericVal) { score += 100; numMatch = true; }
+        if (hrefNumber === numericVal) { score += 80; numMatch = true; }
+        if (normText.includes(`hymn ${numericVal}`) || normText.includes(`orin ${numericVal}`)) { score += 40; numMatch = true; }
+        if (normHref.includes(`hymn-${numericVal}-`)) { score += 30; numMatch = true; }
+        if (numMatch && (normText.includes("lyrics") || normHref.includes("lyrics"))) { score += 5; }
+      } else {
+        // Text/title search matching — strictly require keyword matches
+        const normQuery = normalizeText(queryStr);
+        const keywords = normQuery.split(/\s+/).filter(w => w.length > 1);
+
+        let matchedCount = 0;
+        for (const kw of keywords) {
+          if (normText.includes(kw) || normHref.includes(kw)) {
+            matchedCount++;
+          }
+        }
+
+        if (matchedCount > 0) {
+          score += matchedCount * 25;
+          if (normText === normQuery) score += 100;
+          if (normText.includes(normQuery)) score += 80;
+          if (normHref.includes(normQuery.replace(/\s+/g, "-"))) score += 60;
+          if (normText.startsWith("hymn")) score += 20;
+        }
+      }
+
+      if (score > 0) {
+        const titleClean = link.text.replace(/\s+/g, " ").trim() || href!;
+        const num = hymnNumberFromText(link.text) ?? (isNumeric ? numericVal : null);
+        const existing = scoredMap.get(href!);
+        if (!existing || existing.score < score) {
+          scoredMap.set(href!, { title: titleClean, url: href!, number: num, score });
+        }
+      }
     }
   }
 
-  if (scored.length > 0) {
-    scored.sort((a, b) => b[0] - a[0]);
-    const seenUrls = new Set<string>();
-    for (const [, href] of scored) {
-      if (!seenUrls.has(href)) {
-        seenUrls.add(href);
-        // 3. Persist to cache before returning
-        stmtSetUrlCache.run(number, href);
-        return href;
-      }
+  const results = Array.from(scoredMap.values());
+  results.sort((a, b) => b.score - a.score);
+
+  return results.slice(0, 15).map(r => ({ title: r.title, url: r.url, number: r.number }));
+}
+
+export async function findHymnUrl(queryInput: number | string, lang: string = "all"): Promise<string | null> {
+  const queryStr = String(queryInput).trim();
+  const numericVal = typeof queryInput === "number" ? queryInput : parseInt(queryStr, 10);
+  const isNumeric = !isNaN(numericVal) && /^\d+$/.test(queryStr);
+
+  if (isNumeric && lang === "all") {
+    const cached = stmtGetUrlCache.get(String(numericVal));
+    if (cached) return cached.url;
+  }
+
+  const results = await searchHymns(queryInput, lang);
+  if (results.length > 0) {
+    if (isNumeric && lang === "all") {
+      stmtSetUrlCache.run(String(numericVal), results[0].url);
     }
+    return results[0].url;
   }
 
   return null;

@@ -38,6 +38,39 @@ button.warning{background:#7a6200}
 .setting label{min-width:95px;color:var(--muted)}
 .setting input[type=number]{width:90px}
 .setting input[type=checkbox]{width:auto}
+
+/* Search results list */
+.results-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.result-item{background:#181c24;border:1px solid #323846;border-radius:6px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:background .15s}
+.result-item:hover{background:#242a37;border-color:var(--accent)}
+.result-title{font-weight:600;color:#e2e8f0}
+.result-url{font-size:11px;color:var(--muted);word-break:break-all}
+
+/* Preview Box */
+#previewContainer{
+  width:100%;
+  height:180px;
+  background:#090a0d;
+  border:1px solid var(--line);
+  border-radius:7px;
+  overflow:hidden;
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+#previewIframe{
+  width:1920px;
+  height:1080px;
+  border:0;
+  transform:scale(0.16666);
+  transform-origin:top left;
+  position:absolute;
+  top:0;
+  left:0;
+  pointer-events:none;
+}
+
 @media(max-width:520px){.grid{grid-template-columns:repeat(5,1fr)}.settings{grid-template-columns:1fr}.row{flex-wrap:wrap}}
 </style>
 </head>
@@ -56,17 +89,36 @@ button.warning{background:#7a6200}
     <div class="small" style="margin-top:6px">Zero setup: OBS URL is simply <code>/display</code> or <code>/display_bottom</code>. Only change the session name if running multiple separate rooms on one server.</div>
   </div>
 
+  <!-- Live Dock Preview Box -->
+  <div class="card">
+    <div style="font-weight:700;margin-bottom:8px">📺 Live Overlay Preview</div>
+    <div id="previewContainer">
+      <iframe id="previewIframe" src="/display?session=default"></iframe>
+    </div>
+  </div>
+
   <!-- Hymn search -->
   <div class="card">
     <div class="row">
-      <input id="number" inputmode="numeric" placeholder="Enter hymn number, e.g. 235">
+      <select id="langSelect" style="max-width:140px" title="Filter search by language">
+        <option value="all">🌐 All Languages</option>
+        <option value="eng">🇬🇧 English</option>
+        <option value="yor">🇳🇬 Yorùbá</option>
+      </select>
+      <input id="number" placeholder="Enter hymn number or title (e.g. 235 or Amazing Grace)">
       <button class="primary" id="load">LOAD</button>
     </div>
     <div class="row" style="margin-top:7px">
-      <input id="url" placeholder="Or paste a Treasure Hymns hymn URL">
+      <input id="url" placeholder="Or paste a Treasure Hymns URL (Yoruba, English, CAC, Anglican, etc.)">
       <button id="loadUrl">URL</button>
     </div>
     <div id="status" class="status">Ready.</div>
+  </div>
+
+  <!-- Search Results Selection Card -->
+  <div class="card" id="searchResultsCard" hidden>
+    <div style="font-weight:700;margin-bottom:6px">Multiple Results Found — Click one to load:</div>
+    <div class="results-list" id="resultsList"></div>
   </div>
 
   <!-- Hymn stanza picker -->
@@ -105,11 +157,42 @@ button.warning{background:#7a6200}
       <div class="setting"><label>Alignment</label>
         <select id="align"><option value="center">Center</option><option value="left">Left</option><option value="right">Right</option></select>
       </div>
+
+      <!-- Preset Theme Selector -->
+      <div class="setting">
+        <label>Preset Theme</label>
+        <select id="themeSelect">
+          <option value="minimal">🌟 Clean Minimal</option>
+          <option value="glass">✨ Glassmorphism</option>
+          <option value="gold">🏆 Gold Accents</option>
+          <option value="contrast">⚡ High Contrast</option>
+        </select>
+      </div>
+
+      <!-- Google Fonts Selector -->
+      <div class="setting">
+        <label>Font Family</label>
+        <select id="fontSelect">
+          <option value="Segoe UI">Default (Segoe UI)</option>
+          <option value="Inter">Inter</option>
+          <option value="Outfit">Outfit</option>
+          <option value="Cinzel">Cinzel</option>
+          <option value="Playfair Display">Playfair Display</option>
+          <option value="Roboto">Roboto</option>
+          <option value="Montserrat">Montserrat</option>
+        </select>
+      </div>
+
+      <div class="setting" style="grid-column:1 / -1;display:flex;align-items:center;gap:7px;margin-top:4px">
+        <label>Background</label>
+        <input id="bgImageInput" type="file" accept="image/*" style="width:auto;flex:1;padding:4px;font-size:12px">
+        <button id="clearBgImage" class="danger" style="display:none;padding:5px 8px;font-size:12px">Remove Bg</button>
+      </div>
     </div>
   </div>
 
   <div class="small" style="padding:2px 3px">
-    Tip: Click a stanza or use <b>⏮ Prev Verse / Next Verse ⏭</b> (or Keyboard <b>← / →</b> arrow keys) to step through verses instantly.
+    Tip: Use <b>Numpad / Digits 1-9</b> to jump to verses directly, or <b>← / →</b> arrow keys to step. Press <b>Enter</b> in search box to search!
   </div>
 </div>
 
@@ -119,14 +202,20 @@ const SESSION_KEY = "hymnDockSessionName";
 
 let SESSION_ID = localStorage.getItem(SESSION_KEY) || "default";
 $("sessionInput").value = SESSION_ID;
+updatePreviewIframe();
 
 $("sessionInput").onchange = () => {
   SESSION_ID = $("sessionInput").value.trim() || "default";
   $("sessionInput").value = SESSION_ID;
   localStorage.setItem(SESSION_KEY, SESSION_ID);
+  updatePreviewIframe();
   status("Switched to session: " + SESSION_ID, "good");
   restoreState();
 };
+
+function updatePreviewIframe() {
+  $("previewIframe").src = "/display?session=" + encodeURIComponent(SESSION_ID);
+}
 
 function getOrigin() {
   return window.location.origin;
@@ -146,11 +235,66 @@ $("copyBottom").onclick = () => {
   });
 };
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers & State ──────────────────────────────────────────────────────────
 let hymn = null;
 let currentSectionName = null;
 let currentStanzaNumber = null;
 let activeBtn = null;
+let currentBgImage = localStorage.getItem("hymnDockBgImage") || null;
+
+if (currentBgImage) {
+  $("clearBgImage").style.display = "inline-block";
+}
+
+$("bgImageInput").onchange = (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  status("Processing background image…");
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 1920, maxH = 1080;
+      let w = img.width, h = img.height;
+      if (w > maxW || h > maxH) {
+        const ratio = Math.min(maxW / w, maxH / h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      currentBgImage = canvas.toDataURL("image/jpeg", 0.85);
+
+      try {
+        localStorage.setItem("hymnDockBgImage", currentBgImage);
+      } catch(err) {}
+
+      $("clearBgImage").style.display = "inline-block";
+      pushSettings();
+      status("Background image applied to display!", "good");
+    };
+    img.onerror = () => {
+      currentBgImage = evt.target.result;
+      $("clearBgImage").style.display = "inline-block";
+      pushSettings();
+      status("Background image applied to display!", "good");
+    };
+    img.src = evt.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+$("clearBgImage").onclick = () => {
+  currentBgImage = null;
+  localStorage.removeItem("hymnDockBgImage");
+  $("bgImageInput").value = "";
+  $("clearBgImage").style.display = "none";
+  pushSettings();
+  status("Background image removed.", "good");
+};
 
 function status(msg, kind="") {
   $("status").textContent = msg;
@@ -167,11 +311,21 @@ async function api(url, opts={}) {
 
 // ── Hymn loading ─────────────────────────────────────────────────────────────
 
-async function loadHymn(params, fromCache=false) {
-  status(fromCache ? "Loading from cache…" : "Loading (first time may take a few seconds)…");
+async function loadHymn(params) {
+  status("Searching & loading hymn…");
+  $("searchResultsCard").hidden = true;
   try {
+    const lang = $("langSelect").value;
+    params.lang = lang;
     const qs = new URLSearchParams(params).toString();
     const data = await api("/api/v1/hymn?" + qs);
+
+    if (data.multiple && data.results && data.results.length > 0) {
+      renderSearchResults(data.results);
+      status(`Found ${data.results.length} matching hymns. Click one to select.`, "good");
+      return;
+    }
+
     hymn = data.hymn;
     currentSectionName = null;
     currentStanzaNumber = null;
@@ -180,6 +334,31 @@ async function loadHymn(params, fromCache=false) {
   } catch(e) {
     status(e.message, "error");
   }
+}
+
+function renderSearchResults(results) {
+  $("searchResultsCard").hidden = false;
+  const container = $("resultsList");
+  container.innerHTML = "";
+  for (const item of results) {
+    const div = document.createElement("div");
+    div.className = "result-item";
+    div.onclick = () => {
+      loadHymn({ url: item.url });
+    };
+    div.innerHTML = `
+      <div>
+        <div class="result-title">${escapeHtml(item.title)}</div>
+        <div class="result-url">${escapeHtml(item.url)}</div>
+      </div>
+      <button class="primary" style="padding:4px 8px;font-size:12px">Select</button>
+    `;
+    container.appendChild(div);
+  }
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 }
 
 function renderHymn() {
@@ -256,7 +435,6 @@ function getAllStanzas() {
 }
 
 function updateNavButtons() {
-  // Update verse buttons
   const list = getAllStanzas();
   const prevVerseBtn = $("prevVerse");
   const nextVerseBtn = $("nextVerse");
@@ -280,7 +458,6 @@ function updateNavButtons() {
     }
   }
 
-  // Update hymn buttons
   const prevHymnBtn = $("prevHymn");
   const nextHymnBtn = $("nextHymn");
   if (prevHymnBtn && nextHymnBtn) {
@@ -317,6 +494,14 @@ function navigateVerse(dir) {
   }
 }
 
+function jumpToVerseNumber(num) {
+  const list = getAllStanzas();
+  const target = list.find(item => item.number === num);
+  if (target) {
+    selectStanza(target.section, target.number);
+  }
+}
+
 // ── Clear & Settings ─────────────────────────────────────────────────────────
 
 async function clearDisplay() {
@@ -345,7 +530,10 @@ async function pushSettings() {
     font_size: Number($("fontSize").value),
     max_width: Number($("maxWidth").value),
     line_height: Number($("lineHeight").value),
-    text_align: $("align").value
+    text_align: $("align").value,
+    theme: $("themeSelect").value,
+    font_family: $("fontSelect").value,
+    bg_image: currentBgImage
   };
   try {
     await api("/api/v1/state", {
@@ -384,17 +572,32 @@ $("refresh").onclick = async () => {
   }
 };
 
-// ── Event listeners ───────────────────────────────────────────────────────────
+// ── Event listeners & Enter key support ──────────────────────────────────────
 
 $("load").onclick = () => {
   const n = $("number").value.trim();
-  if (!n) { status("Enter a hymn number.", "error"); return; }
+  if (!n) { status("Enter a hymn number or title.", "error"); return; }
   loadHymn({number: n});
 };
 $("loadUrl").onclick = () => {
   const u = $("url").value.trim();
   if (!u) { status("Enter a URL.", "error"); return; }
   loadHymn({url: u});
+};
+
+// Enter key support for input boxes
+$("number").onkeydown = (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    $("load").click();
+  }
+};
+
+$("url").onkeydown = (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    $("loadUrl").click();
+  }
 };
 
 // Verse stepping
@@ -407,11 +610,11 @@ $("nextHymn").onclick = () => navigateHymn("next");
 
 $("clear").onclick = clearDisplay;
 
-["showTitle","showNumber","showSection","fontSize","maxWidth","lineHeight","align"].forEach(id => {
+["showTitle","showNumber","showSection","fontSize","maxWidth","lineHeight","align","themeSelect","fontSelect"].forEach(id => {
   $(id).addEventListener("change", pushSettings);
 });
 
-// Keyboard arrow key shortcuts (when not focused in text input)
+// Keyboard shortcuts (Numpad / Digits 1-9 to jump to verses, Arrow keys to step)
 window.addEventListener("keydown", (e) => {
   const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
   if (tag === "input" || tag === "select" || tag === "textarea") return;
@@ -428,6 +631,9 @@ window.addEventListener("keydown", (e) => {
     }
   } else if (e.key === "Escape") {
     clearDisplay();
+  } else if (/^[1-9]$/.test(e.key)) {
+    const digit = parseInt(e.key, 10);
+    jumpToVerseNumber(digit);
   }
 });
 
@@ -445,6 +651,12 @@ async function restoreState() {
       $("maxWidth").value = s.max_width ?? 1500;
       $("lineHeight").value = s.line_height ?? 1.35;
       $("align").value = s.text_align ?? "center";
+      $("themeSelect").value = s.theme ?? "minimal";
+      $("fontSelect").value = s.font_family ?? "Segoe UI";
+      if (s.bg_image) {
+        currentBgImage = s.bg_image;
+        $("clearBgImage").style.display = "inline-block";
+      }
     }
     if (data.state.hymn) {
       hymn = data.state.hymn;

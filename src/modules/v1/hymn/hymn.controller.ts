@@ -7,7 +7,7 @@
  */
 
 import { Request, Response } from "express";
-import { findHymnUrl, parseHymn, bustHymnCache } from "./hymn.parser";
+import { findHymnUrl, searchHymns, parseHymn, bustHymnCache } from "./hymn.parser";
 import { logger } from "@/utils";
 
 const BASE = "https://treasurehymns.com";
@@ -15,7 +15,7 @@ const BASE = "https://treasurehymns.com";
 // ── GET /api/v1/hymn ─────────────────────────────────────────────────────────
 
 export const getHymn = async (req: Request, res: Response): Promise<void> => {
-  const { url: urlParam, number: numberParam } = req.query as Record<
+  const { url: urlParam, number: numberParam, query: queryParam, lang: langParam, direct: directParam } = req.query as Record<
     string,
     string | undefined
   >;
@@ -29,27 +29,34 @@ export const getHymn = async (req: Request, res: Response): Promise<void> => {
         return;
       }
       url = urlParam;
-    } else if (numberParam) {
-      const number = parseInt(numberParam, 10);
-      if (isNaN(number)) {
-        res.status(400).json({ ok: false, error: "Invalid hymn number." });
+    } else if (numberParam || queryParam) {
+      const searchTerm = (numberParam || queryParam)!.trim();
+      const lang = langParam || "all";
+      if (!searchTerm) {
+        res.status(400).json({ ok: false, error: "Provide a valid search term or hymn number." });
         return;
       }
 
-      logger.info("Hymn", `Looking up hymn ${number}…`);
-      const found = await findHymnUrl(number);
+      logger.info("Hymn", `Searching: "${searchTerm}" (lang: ${lang})…`);
+      const results = await searchHymns(searchTerm, lang);
 
-      if (!found) {
+      if (results.length === 0) {
         res.status(400).json({
           ok: false,
-          error: `Could not find Hymn ${number} on Treasure Hymns.`,
+          error: `Could not find "${searchTerm}" on Treasure Hymns.`,
         });
         return;
       }
 
-      url = found;
+      // If multiple results found and user didn't request direct load, return search results
+      if (results.length > 1 && directParam !== "true") {
+        res.status(200).json({ ok: true, multiple: true, results });
+        return;
+      }
+
+      url = results[0].url;
     } else {
-      res.status(400).json({ ok: false, error: "Provide a hymn number or Treasure Hymns URL." });
+      res.status(400).json({ ok: false, error: "Provide a hymn number, title search query, or Treasure Hymns URL." });
       return;
     }
 

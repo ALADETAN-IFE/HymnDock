@@ -10,8 +10,9 @@ const app = express();
 // Enable trust proxy for reverse proxy
 app.set("trust proxy", 1);
 
-// Parse JSON request bodies
-app.use(express.json());
+// Parse JSON and urlencoded request bodies (50mb limit for browser background images)
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 app.use(observabilityMiddleware);
 

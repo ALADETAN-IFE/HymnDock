@@ -19,9 +19,11 @@ export interface HymnData {
   next: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Display settings (mirrors Python's state["settings"])
-// ---------------------------------------------------------------------------
+export interface SearchResultItem {
+  title: string;
+  url: string;
+  number: number | null;
+}
 
 export interface DisplaySettings {
   show_title: boolean;
@@ -31,6 +33,9 @@ export interface DisplaySettings {
   max_width: number;
   line_height: number;
   text_align: "center" | "left" | "right";
+  bg_image?: string | null;
+  font_family?: string;
+  theme?: string;
 }
 
 // ---------------------------------------------------------------------------
