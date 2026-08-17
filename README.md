@@ -4,15 +4,6 @@ A high-performance TypeScript backend server, interactive control dock, and live
 
 ---
 
-## About this Scaffold
-
-This project was generated using the `@ifecodes/backend-template` scaffold. You can recreate or customize this scaffold using the CLI:
-
-- Run without installing (recommended): `npx ifecodes-template`
-- Install globally: `npm i -g @ifecodes/backend-template` and run `ifecodes-template`
-
----
-
 ## ⚡ Key Features
 
 - **⚡ Permanent SQLite Caching**: Hymns are scraped once and stored permanently in SQLite (`data/hymn_dock.db`). Repeat hymn loads are near-instant (< 10ms), even after server restarts.
@@ -126,3 +117,13 @@ Default server URL: `https://hymn-dock.onrender.com`
 | `POST` | `/api/v1/state` | Update active state / stanza / settings (`?session=`) |
 | `GET` | `/api/v1/state/events` | SSE real-time state stream (`?session=`) |
 | `GET` | `/api-docs` | Interactive Swagger API documentation |
+
+
+---
+
+## Scaffold
+
+This project was generated using the `@ifecodes/backend-template` scaffold. You can recreate or customize this scaffold using the CLI:
+
+- Run without installing (recommended): `npx ifecodes-template`
+- Install globally: `npm i -g @ifecodes/backend-template` and run `ifecodes-template`
