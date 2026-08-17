@@ -115,6 +115,13 @@ body{
   white-space:normal;
 }
 
+.chorus {
+  color: #f5c518;
+  font-style: italic;
+  font-weight: 700;
+  text-shadow: 0 2px 10px rgba(245, 197, 24, 0.45);
+}
+
 @media(max-width:1100px){
   #linebox{font-size:46px}
   #title{font-size:22px}
@@ -147,6 +154,14 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, c => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
   }[c]));
+}
+
+function formatLine(line) {
+  const esc = escapeHtml(line);
+  if (/^(chorus|refrain|egbe|amon|akovi)[\s:]/i.test(line) || /^\(chorus\)|\[chorus\]/i.test(line)) {
+    return `<span class="chorus">${esc}</span>`;
+  }
+  return esc;
 }
 
 function loadFont(fontName) {
@@ -191,7 +206,7 @@ function applyState(d) {
     settings.show_section ? state.section + " • VERSE " + state.stanza : "";
 
   document.getElementById("linebox").innerHTML =
-    stanza.lines.map(escapeHtml).join("<br>");
+    stanza.lines.map(formatLine).join("<br>");
 
   document.documentElement.style.setProperty(
     "--font-size", (Number(settings.font_size) || 58) + "px"

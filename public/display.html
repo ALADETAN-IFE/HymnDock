@@ -37,6 +37,13 @@ body{font-family:"Segoe UI",Arial,sans-serif;color:white}
   border: 2px solid #333333;
 }
 
+.chorus {
+  color: #f5c518;
+  font-style: italic;
+  font-weight: 700;
+  text-shadow: 0 2px 10px rgba(245, 197, 24, 0.45);
+}
+
 @media(max-width:900px){#linebox{font-size:44px}#title{font-size:24px}#meta{font-size:18px}}
 </style>
 </head>
@@ -53,6 +60,14 @@ const $ = id => document.getElementById(id);
 
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+}
+
+function formatLine(line) {
+  const esc = escapeHtml(line);
+  if (/^(chorus|refrain|egbe|amon|akovi)[\s:]/i.test(line) || /^\(chorus\)|\[chorus\]/i.test(line)) {
+    return `<span class="chorus">${esc}</span>`;
+  }
+  return esc;
 }
 
 function loadFont(fontName) {
@@ -89,7 +104,7 @@ function applyState(d) {
   $("meta").textContent = set.show_hymn_number ? "HYMN " + (h.number ?? "") : "";
   $("title").textContent = set.show_title ? (h.title || "") : "";
   $("section").textContent = set.show_section ? s.section + " • VERSE " + s.stanza : "";
-  $("linebox").innerHTML = st.lines.map(escapeHtml).join("<br>");
+  document.getElementById("linebox").innerHTML = st.lines.map(formatLine).join("<br>");
 
   document.documentElement.style.setProperty("--font-size", (Number(set.font_size) || 58) + "px");
   document.documentElement.style.setProperty("--max-width", (Number(set.max_width) || 1500) + "px");
