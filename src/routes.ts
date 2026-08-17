@@ -31,7 +31,7 @@ router.use(
   "/api-docs",
   swaggerUi.serve,
   (req: Request, res: Response, next: NextFunction) => {
-    const projectName = "hymn_dock_ts";
+    const projectName = "HymnDock";
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     const spec = routeRegistry.generateOpenAPI(projectName, "1.0.0", baseUrl);
     const options = {

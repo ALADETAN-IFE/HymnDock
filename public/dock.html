@@ -151,6 +151,7 @@ button.warning{background:#7a6200}
       <div class="setting"><label>Title</label><input id="showTitle" type="checkbox" checked></div>
       <div class="setting"><label>Hymn number</label><input id="showNumber" type="checkbox" checked></div>
       <div class="setting"><label>Section</label><input id="showSection" type="checkbox"></div>
+      <div class="setting"><label>Show Logo</label><input id="showLogo" type="checkbox" checked></div>
       <div class="setting"><label>Font size</label><input id="fontSize" type="number" min="20" max="120" value="58"></div>
       <div class="setting"><label>Max width</label><input id="maxWidth" type="number" min="500" max="2200" value="1500"></div>
       <div class="setting"><label>Line height</label><input id="lineHeight" type="number" min="1" max="2" step="0.05" value="1.35"></div>
@@ -527,6 +528,7 @@ async function pushSettings() {
     show_title: $("showTitle").checked,
     show_hymn_number: $("showNumber").checked,
     show_section: $("showSection").checked,
+    show_logo: $("showLogo").checked,
     font_size: Number($("fontSize").value),
     max_width: Number($("maxWidth").value),
     line_height: Number($("lineHeight").value),
@@ -610,7 +612,7 @@ $("nextHymn").onclick = () => navigateHymn("next");
 
 $("clear").onclick = clearDisplay;
 
-["showTitle","showNumber","showSection","fontSize","maxWidth","lineHeight","align","themeSelect","fontSelect"].forEach(id => {
+["showTitle","showNumber","showSection","showLogo","fontSize","maxWidth","lineHeight","align","themeSelect","fontSelect"].forEach(id => {
   $(id).addEventListener("change", pushSettings);
 });
 
@@ -647,6 +649,7 @@ async function restoreState() {
       $("showTitle").checked = s.show_title ?? true;
       $("showNumber").checked = s.show_hymn_number ?? true;
       $("showSection").checked = s.show_section ?? false;
+      $("showLogo").checked = s.show_logo ?? true;
       $("fontSize").value = s.font_size ?? 58;
       $("maxWidth").value = s.max_width ?? 1500;
       $("lineHeight").value = s.line_height ?? 1.35;

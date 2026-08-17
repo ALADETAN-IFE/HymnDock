@@ -36,6 +36,7 @@ export interface DisplaySettings {
   bg_image?: string | null;
   font_family?: string;
   theme?: string;
+  show_logo?: boolean;
 }
 
 // ---------------------------------------------------------------------------
