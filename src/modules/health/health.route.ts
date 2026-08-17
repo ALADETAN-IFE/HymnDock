@@ -8,7 +8,7 @@ const router = Router();
 // Register route schema with auto-generated docs
 routeRegistry.register({
   method: "GET",
-  path: "/api/v1/health",
+  path: "/api/health",
   handler: healthCheck,
   docs: {
     tags: ["Health"],

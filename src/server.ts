@@ -10,7 +10,7 @@ const keepaliveInterval = 14 * 60 * 1000;
 const startServer = async () => {
   app.listen(PORT, () => {
     setInterval(() => {
-      void fetch(`${baseUrl}/health`)
+      void fetch(`${baseUrl}/api/health`)
         .then(() => logger.info("[keepalive] ping sent"))
         .catch(() => logger.warn("[keepalive] ping failed"));
     }, keepaliveInterval);
