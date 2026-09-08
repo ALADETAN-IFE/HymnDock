@@ -35,10 +35,29 @@ const FETCH_HEADERS = {
 // ---------------------------------------------------------------------------
 
 const BLOCK_TAGS = new Set([
-  "p", "div", "br", "li", "ul", "ol",
-  "h1", "h2", "h3", "h4", "h5", "h6",
-  "article", "section", "header", "footer",
-  "main", "aside", "blockquote", "tr", "td", "th", "pre",
+  "p",
+  "div",
+  "br",
+  "li",
+  "ul",
+  "ol",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "article",
+  "section",
+  "header",
+  "footer",
+  "main",
+  "aside",
+  "blockquote",
+  "tr",
+  "td",
+  "th",
+  "pre",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -213,7 +232,12 @@ export async function searchHymns(
   const isNumeric = !isNaN(numericVal) && /^\d+$/.test(queryStr);
 
   const searchQueries = isNumeric
-    ? [String(numericVal), `hymn ${numericVal}`, `hymn-${numericVal}`, `orin ${numericVal}`]
+    ? [
+        String(numericVal),
+        `hymn ${numericVal}`,
+        `hymn-${numericVal}`,
+        `orin ${numericVal}`,
+      ]
     : [queryStr];
 
   const searchUrls: string[] = [];
@@ -244,15 +268,25 @@ export async function searchHymns(
       );
     }
     for (const u of candidates) {
-      if (!seen.has(u)) { seen.add(u); searchUrls.push(u); }
+      if (!seen.has(u)) {
+        seen.add(u);
+        searchUrls.push(u);
+      }
     }
   }
 
-  const scoredMap = new Map<string, { title: string; url: string; number: number | null; score: number }>();
+  const scoredMap = new Map<
+    string,
+    { title: string; url: string; number: number | null; score: number }
+  >();
 
   for (const searchUrl of searchUrls) {
     let html: string;
-    try { html = await fetchHtml(searchUrl); } catch { continue; }
+    try {
+      html = await fetchHtml(searchUrl);
+    } catch {
+      continue;
+    }
 
     const { links } = parseHtmlPage(html);
 
@@ -261,7 +295,13 @@ export async function searchHymns(
       if (!isTreasureHymnUrl(href)) continue;
 
       if (lang === "eng" && href!.toLowerCase().includes("/yor/")) continue;
-      if (lang === "yor" && (href!.toLowerCase().includes("/en/") || href!.toLowerCase().includes("/eng/") || href!.toLowerCase().includes("/english"))) continue;
+      if (
+        lang === "yor" &&
+        (href!.toLowerCase().includes("/en/") ||
+          href!.toLowerCase().includes("/eng/") ||
+          href!.toLowerCase().includes("/english"))
+      )
+        continue;
 
       const normText = normalizeText(link.text);
       const normHref = normalizeText(href);
@@ -273,15 +313,32 @@ export async function searchHymns(
         const hrefNumber = hymnNumberFromText(hrefDecoded);
         let numMatch = false;
 
-        if (linkNumber === numericVal) { score += 100; numMatch = true; }
-        if (hrefNumber === numericVal) { score += 80; numMatch = true; }
-        if (normText.includes(`hymn ${numericVal}`) || normText.includes(`orin ${numericVal}`)) { score += 40; numMatch = true; }
-        if (normHref.includes(`hymn-${numericVal}-`)) { score += 30; numMatch = true; }
-        if (numMatch && (normText.includes("lyrics") || normHref.includes("lyrics"))) { score += 5; }
+        if (linkNumber === numericVal) {
+          score += 100;
+          numMatch = true;
+        }
+        if (hrefNumber === numericVal) {
+          score += 80;
+          numMatch = true;
+        }
+        if (
+          normText.includes(`hymn ${numericVal}`) ||
+          normText.includes(`orin ${numericVal}`)
+        ) {
+          score += 40;
+          numMatch = true;
+        }
+        if (normHref.includes(`hymn-${numericVal}-`)) {
+          score += 30;
+          numMatch = true;
+        }
+        if (numMatch && (normText.includes("lyrics") || normHref.includes("lyrics"))) {
+          score += 5;
+        }
       } else {
         // Text/title search matching — strictly require keyword matches
         const normQuery = normalizeText(queryStr);
-        const keywords = normQuery.split(/\s+/).filter(w => w.length > 1);
+        const keywords = normQuery.split(/\s+/).filter((w) => w.length > 1);
 
         let matchedCount = 0;
         for (const kw of keywords) {
@@ -313,10 +370,15 @@ export async function searchHymns(
   const results = Array.from(scoredMap.values());
   results.sort((a, b) => b.score - a.score);
 
-  return results.slice(0, 15).map(r => ({ title: r.title, url: r.url, number: r.number }));
+  return results
+    .slice(0, 15)
+    .map((r) => ({ title: r.title, url: r.url, number: r.number }));
 }
 
-export async function findHymnUrl(queryInput: number | string, lang: string = "all"): Promise<string | null> {
+export async function findHymnUrl(
+  queryInput: number | string,
+  lang: string = "all",
+): Promise<string | null> {
   const queryStr = String(queryInput).trim();
   const numericVal = typeof queryInput === "number" ? queryInput : parseInt(queryStr, 10);
   const isNumeric = !isNaN(numericVal) && /^\d+$/.test(queryStr);
@@ -356,7 +418,8 @@ function isProbableStanza(line: string): [number, string] | null {
 function appendLine(stanza: Stanza, line: string): void {
   const cleaned = line.replace(/\s+/g, " ").trim();
   if (!cleaned) return;
-  if (stanza.lines.length > 0 && stanza.lines[stanza.lines.length - 1] === cleaned) return;
+  if (stanza.lines.length > 0 && stanza.lines[stanza.lines.length - 1] === cleaned)
+    return;
   stanza.lines.push(cleaned);
 }
 
@@ -366,7 +429,10 @@ function parseSectionedVerses(lines: string[]): Sections {
   let currentStanza: Stanza | null = null;
 
   for (const line of lines) {
-    if (STOP_LINES.test(line)) { if (currentSection) break; continue; }
+    if (STOP_LINES.test(line)) {
+      if (currentSection) break;
+      continue;
+    }
 
     const headingMatch = APA_HEADING.exec(line);
     if (headingMatch) {
@@ -396,7 +462,10 @@ function parseNumberedVerses(lines: string[]): Stanza[] {
   let firstIndex = -1;
   for (let i = 0; i < lines.length; i++) {
     const s = isProbableStanza(lines[i]);
-    if (s && s[0] === 1) { firstIndex = i; break; }
+    if (s && s[0] === 1) {
+      firstIndex = i;
+      break;
+    }
   }
   if (firstIndex === -1) return [];
 
@@ -410,9 +479,20 @@ function parseNumberedVerses(lines: string[]): Stanza[] {
     if (stanza) {
       const [number, firstText] = stanza;
       if (current !== null) {
-        if (number === current.number) { appendLine(current, firstText); continue; }
-        if (number === current.number + 1) { verses.push(current); current = { number, lines: [firstText] }; continue; }
-        if (number > current.number && number <= current.number + 3) { verses.push(current); current = { number, lines: [firstText] }; continue; }
+        if (number === current.number) {
+          appendLine(current, firstText);
+          continue;
+        }
+        if (number === current.number + 1) {
+          verses.push(current);
+          current = { number, lines: [firstText] };
+          continue;
+        }
+        if (number > current.number && number <= current.number + 3) {
+          verses.push(current);
+          current = { number, lines: [firstText] };
+          continue;
+        }
         break;
       }
       current = { number, lines: [firstText] };
@@ -422,15 +502,19 @@ function parseNumberedVerses(lines: string[]): Stanza[] {
   }
 
   if (current) verses.push(current);
-  return verses.filter(v => v.number >= 1 && v.lines.some(t => t.length > 2));
+  return verses.filter((v) => v.number >= 1 && v.lines.some((t) => t.length > 2));
 }
 
 function findHymnTitle(lines: string[], requestedNumber: number | null): string {
   if (requestedNumber !== null) {
     const pattern = new RegExp(`^Hymn\\s+${requestedNumber}\\b.*`, "i");
-    for (const line of lines) { if (pattern.test(line)) return line; }
+    for (const line of lines) {
+      if (pattern.test(line)) return line;
+    }
   }
-  for (const line of lines) { if (/^Hymn\s+\d+\b/i.test(line)) return line; }
+  for (const line of lines) {
+    if (/^Hymn\s+\d+\b/i.test(line)) return line;
+  }
   return "";
 }
 
@@ -473,7 +557,11 @@ const neighborPrefetchInFlight = new Set<string>();
 /** Warm previous/next hymn pages in the background so sequential navigation is instant. */
 export function prefetchNeighbors(hymn: HymnData): void {
   for (const neighborUrl of [hymn.previous, hymn.next]) {
-    if (!neighborUrl || neighborPrefetchInFlight.has(neighborUrl) || isHymnCached(neighborUrl)) {
+    if (
+      !neighborUrl ||
+      neighborPrefetchInFlight.has(neighborUrl) ||
+      isHymnCached(neighborUrl)
+    ) {
       continue;
     }
     neighborPrefetchInFlight.add(neighborUrl);
@@ -493,7 +581,7 @@ export async function parseHymn(url: string): Promise<HymnData> {
   // 2. Cache miss — fetch and parse
   const html = await fetchHtml(url);
   const { lines: rawLines, title: pageTitle } = parseHtmlPage(html);
-  const lines = rawLines.map(l => l.trim()).filter(Boolean);
+  const lines = rawLines.map((l) => l.trim()).filter(Boolean);
 
   const requestedNumber = hymnNumberFromText(url);
   let title = findHymnTitle(lines, requestedNumber);
@@ -503,7 +591,10 @@ export async function parseHymn(url: string): Promise<HymnData> {
 
   let titleIndex = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (title && normalizeText(lines[i]) === normalizeText(title)) { titleIndex = i; break; }
+    if (title && normalizeText(lines[i]) === normalizeText(title)) {
+      titleIndex = i;
+      break;
+    }
   }
 
   const body = titleIndex >= 0 ? lines.slice(titleIndex + 1) : lines;
@@ -523,7 +614,7 @@ export async function parseHymn(url: string): Promise<HymnData> {
   if (Object.keys(sections).length === 0) {
     throw new Error(
       "Could not detect hymn verses on the individual Treasure Hymns page. " +
-      "The search result was found, but its lyric structure could not be parsed.",
+        "The search result was found, but its lyric structure could not be parsed.",
     );
   }
 
@@ -541,9 +632,7 @@ export async function parseHymn(url: string): Promise<HymnData> {
 // Cache busting — called by the Refresh button on the dock
 // ---------------------------------------------------------------------------
 
-const stmtBustHymnByUrl = db.prepare<[string]>(
-  "DELETE FROM hymn_cache WHERE url = ?",
-);
+const stmtBustHymnByUrl = db.prepare<[string]>("DELETE FROM hymn_cache WHERE url = ?");
 const stmtBustUrlByNumber = db.prepare<[string]>(
   "DELETE FROM hymn_url_cache WHERE url = ?",
 );

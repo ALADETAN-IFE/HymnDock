@@ -15,17 +15,22 @@ const BASE = "https://treasurehymns.com";
 // ── GET /api/v1/hymn ─────────────────────────────────────────────────────────
 
 export const getHymn = async (req: Request, res: Response): Promise<void> => {
-  const { url: urlParam, number: numberParam, query: queryParam, lang: langParam, direct: directParam } = req.query as Record<
-    string,
-    string | undefined
-  >;
+  const {
+    url: urlParam,
+    number: numberParam,
+    query: queryParam,
+    lang: langParam,
+    direct: directParam,
+  } = req.query as Record<string, string | undefined>;
 
   try {
     let url: string;
 
     if (urlParam) {
       if (!urlParam.startsWith(BASE + "/")) {
-        res.status(400).json({ ok: false, error: "Only Treasure Hymns URLs are supported." });
+        res
+          .status(400)
+          .json({ ok: false, error: "Only Treasure Hymns URLs are supported." });
         return;
       }
       url = urlParam;
@@ -33,7 +38,9 @@ export const getHymn = async (req: Request, res: Response): Promise<void> => {
       const searchTerm = (numberParam || queryParam)!.trim();
       const lang = langParam || "all";
       if (!searchTerm) {
-        res.status(400).json({ ok: false, error: "Provide a valid search term or hymn number." });
+        res
+          .status(400)
+          .json({ ok: false, error: "Provide a valid search term or hymn number." });
         return;
       }
 
@@ -56,7 +63,10 @@ export const getHymn = async (req: Request, res: Response): Promise<void> => {
 
       url = results[0].url;
     } else {
-      res.status(400).json({ ok: false, error: "Provide a hymn number, title search query, or Treasure Hymns URL." });
+      res.status(400).json({
+        ok: false,
+        error: "Provide a hymn number, title search query, or Treasure Hymns URL.",
+      });
       return;
     }
 
