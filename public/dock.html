@@ -347,6 +347,15 @@ function renderSearchResults(results) {
     div.onclick = () => {
       loadHymn({ url: item.url });
     };
+    // Prefetch on hover so selecting is instant
+    div.onmouseenter = () => {
+      try {
+        fetch(
+          "/api/v1/hymn?url=" + encodeURIComponent(item.url) +
+            "&direct=true&session=" + encodeURIComponent(SESSION_ID),
+        ).catch(() => {});
+      } catch (e) {}
+    };
     div.innerHTML = `
       <div>
         <div class="result-title">${escapeHtml(item.title)}</div>

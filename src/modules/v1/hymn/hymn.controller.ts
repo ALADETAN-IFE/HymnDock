@@ -7,7 +7,13 @@
  */
 
 import { Request, Response } from "express";
-import { findHymnUrl, searchHymns, parseHymn, bustHymnCache } from "./hymn.parser";
+import {
+  findHymnUrl,
+  searchHymns,
+  parseHymn,
+  bustHymnCache,
+  prefetchNeighbors,
+} from "./hymn.parser";
 import { logger } from "@/utils";
 
 const BASE = "https://treasurehymns.com";
@@ -43,25 +49,38 @@ export const getHymn = async (req: Request, res: Response): Promise<void> => {
           .json({ ok: false, error: "Provide a valid search term or hymn number." });
         return;
       }
+      // Fast-path numeric lookups through the URL cache (avoid multi-page search)
+      const isNumeric = /^\d+$/.test(searchTerm);
+      if (isNumeric) {
+        const found = await findHymnUrl(searchTerm, lang);
+        if (!found) {
+          res.status(400).json({
+            ok: false,
+            error: `Could not find "${searchTerm}" on Treasure Hymns.`,
+          });
+          return;
+        }
+        url = found;
+      } else {
+        logger.info("Hymn", `Searching: "${searchTerm}" (lang: ${lang})…`);
+        const results = await searchHymns(searchTerm, lang);
 
-      logger.info("Hymn", `Searching: "${searchTerm}" (lang: ${lang})…`);
-      const results = await searchHymns(searchTerm, lang);
+        if (results.length === 0) {
+          res.status(400).json({
+            ok: false,
+            error: `Could not find "${searchTerm}" on Treasure Hymns.`,
+          });
+          return;
+        }
 
-      if (results.length === 0) {
-        res.status(400).json({
-          ok: false,
-          error: `Could not find "${searchTerm}" on Treasure Hymns.`,
-        });
-        return;
+        // If multiple results found and user didn't request direct load, return search results
+        if (results.length > 1 && directParam !== "true") {
+          res.status(200).json({ ok: true, multiple: true, results });
+          return;
+        }
+
+        url = results[0].url;
       }
-
-      // If multiple results found and user didn't request direct load, return search results
-      if (results.length > 1 && directParam !== "true") {
-        res.status(200).json({ ok: true, multiple: true, results });
-        return;
-      }
-
-      url = results[0].url;
     } else {
       res.status(400).json({
         ok: false,
@@ -72,6 +91,11 @@ export const getHymn = async (req: Request, res: Response): Promise<void> => {
 
     logger.info("Hymn", `Fetching: ${url}`);
     const hymn = await parseHymn(url);
+
+    // Prefetch adjacent hymns in background to speed sequential navigation
+    try {
+      void prefetchNeighbors(hymn);
+    } catch {}
 
     res.status(200).json({ ok: true, hymn });
   } catch (err) {
