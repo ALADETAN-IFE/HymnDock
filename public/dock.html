@@ -646,9 +646,9 @@ async function restoreState() {
     const data = await api("/api/v1/state");
     const s = data.state.settings;
     if (s) {
-      $("showTitle").checked = s.show_title ?? true;
+      $("showTitle").checked = s.show_title ?? false;
       $("showNumber").checked = s.show_hymn_number ?? true;
-      $("showSection").checked = s.show_section ?? false;
+      $("showSection").checked = s.show_section ?? true;
       $("showLogo").checked = s.show_logo ?? true;
       $("fontSize").value = s.font_size ?? 58;
       $("maxWidth").value = s.max_width ?? 1500;
