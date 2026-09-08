@@ -1,695 +1,1025 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Hymn Dock</title>
-<style>
-:root{--bg:#171a21;--panel:#20242d;--line:#343a48;--text:#f1f3f7;--muted:#aeb5c2;--accent:#6ea8fe;--good:#54d38a;--danger:#ff7b7b}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font-family:Segoe UI,Arial,sans-serif;font-size:14px}
-.wrap{padding:12px;max-width:900px;margin:auto}
-h1{font-size:19px;margin:0 0 10px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px;margin-bottom:10px}
-.row{display:flex;gap:7px;align-items:center}
-input,button,select{font:inherit}
-input,select{background:#11141a;color:var(--text);border:1px solid #464d5d;border-radius:6px;padding:8px}
-input{width:100%}
-button{border:0;border-radius:6px;padding:8px 11px;background:#3b4252;color:white;cursor:pointer}
-button:hover{background:#4a5366}
-button:disabled{opacity:0.35;cursor:not-allowed;pointer-events:none}
-button.primary{background:#3268b5}
-button.primary:hover{background:#3e79cc}
-button.active{background:#2f9e68}
-button.danger{background:#7d3e47}
-button.warning{background:#7a6200}
-.small{color:var(--muted);font-size:12px}
-.status{margin-top:8px;color:var(--muted);min-height:18px}
-.status.good{color:var(--good)}
-.status.error{color:var(--danger)}
-.hymn-title{font-size:16px;font-weight:700;margin-bottom:2px}
-.section{margin-top:12px}
-.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-.section-name{font-weight:700;color:#dbe5f7}
-.grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
-.grid button{padding:9px 4px}
-.settings{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.setting{display:flex;align-items:center;gap:7px}
-.setting label{min-width:95px;color:var(--muted)}
-.setting input[type=number]{width:90px}
-.setting input[type=checkbox]{width:auto}
-
-/* Search results list */
-.results-list{display:flex;flex-direction:column;gap:6px;margin-top:8px}
-.result-item{background:#181c24;border:1px solid #323846;border-radius:6px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:background .15s}
-.result-item:hover{background:#242a37;border-color:var(--accent)}
-.result-title{font-weight:600;color:#e2e8f0}
-.result-url{font-size:11px;color:var(--muted);word-break:break-all}
-
-/* Preview Box */
-#previewContainer{
-  width:100%;
-  height:180px;
-  background:#090a0d;
-  border:1px solid var(--line);
-  border-radius:7px;
-  overflow:hidden;
-  position:relative;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-#previewIframe{
-  width:1920px;
-  height:1080px;
-  border:0;
-  transform:scale(0.16666);
-  transform-origin:top left;
-  position:absolute;
-  top:0;
-  left:0;
-  pointer-events:none;
-}
-
-@media(max-width:520px){.grid{grid-template-columns:repeat(5,1fr)}.settings{grid-template-columns:1fr}.row{flex-wrap:wrap}}
-</style>
-</head>
-<body>
-<div class="wrap">
-  <h1>🎵 Hymn Dock</h1>
-
-  <!-- Session info -->
-  <div class="card">
-    <div style="font-weight:700;margin-bottom:8px">Session / Room</div>
-    <div class="row">
-      <input id="sessionInput" value="default" placeholder="e.g. default, main, room1" style="max-width:180px">
-      <button id="copyDisplay" title="Copy OBS display URL to clipboard">📋 Copy Display URL</button>
-      <button id="copyBottom" title="Copy OBS bottom display URL to clipboard">📋 Copy Bottom URL</button>
-    </div>
-    <div class="small" style="margin-top:6px">Zero setup: OBS URL is simply <code>/display</code> or <code>/display_bottom</code>. Only change the session name if running multiple separate rooms on one server.</div>
-  </div>
-
-  <!-- Live Dock Preview Box -->
-  <div class="card">
-    <div style="font-weight:700;margin-bottom:8px">📺 Live Overlay Preview</div>
-    <div id="previewContainer">
-      <iframe id="previewIframe" src="/display?session=default"></iframe>
-    </div>
-  </div>
-
-  <!-- Hymn search -->
-  <div class="card">
-    <div class="row">
-      <select id="langSelect" style="max-width:140px" title="Filter search by language">
-        <option value="all">🌐 All Languages</option>
-        <option value="eng">🇬🇧 English</option>
-        <option value="yor">🇳🇬 Yorùbá</option>
-      </select>
-      <input id="number" placeholder="Enter hymn number or title (e.g. 235 or Amazing Grace)">
-      <button class="primary" id="load">LOAD</button>
-    </div>
-    <div class="row" style="margin-top:7px">
-      <input id="url" placeholder="Or paste a Treasure Hymns URL (Yoruba, English, CAC, Anglican, etc.)">
-      <button id="loadUrl">URL</button>
-    </div>
-    <div id="status" class="status">Ready.</div>
-  </div>
-
-  <!-- Search Results Selection Card -->
-  <div class="card" id="searchResultsCard" hidden>
-    <div style="font-weight:700;margin-bottom:6px">Multiple Results Found — Click one to load:</div>
-    <div class="results-list" id="resultsList"></div>
-  </div>
-
-  <!-- Hymn stanza picker -->
-  <div class="card" id="hymnCard" hidden>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-      <div class="hymn-title" id="title" style="flex:1"></div>
-      <button class="warning" id="refresh" title="Force re-scrape this hymn from the website">🔄 Refresh</button>
-    </div>
-    <div class="small" id="source"></div>
-    <div id="sections"></div>
-
-    <!-- Verse navigation bar -->
-    <div class="row" style="margin-top:12px;padding-top:8px;border-top:1px solid var(--line)">
-      <button class="primary" id="prevVerse" title="Keyboard: Left Arrow / Up Arrow" disabled>⏮ Prev Verse</button>
-      <button class="primary" id="nextVerse" title="Keyboard: Right Arrow / Down Arrow">Next Verse ⏭</button>
-      <button class="danger" id="clear" style="margin-left:auto">CLEAR DISPLAY</button>
-    </div>
-
-    <!-- Hymn navigation bar -->
-    <div class="row" style="margin-top:8px">
-      <button id="prevHymn">← Prev Hymn</button>
-      <button id="nextHymn">Next Hymn →</button>
-    </div>
-  </div>
-
-  <!-- Display settings -->
-  <div class="card">
-    <div style="font-weight:700;margin-bottom:8px">Display Settings</div>
-    <div class="settings">
-      <div class="setting"><label>Title</label><input id="showTitle" type="checkbox"></div>
-      <div class="setting"><label>Hymn number</label><input id="showNumber" type="checkbox" checked></div>
-      <div class="setting"><label>Section</label><input id="showSection" type="checkbox" checked></div>
-      <div class="setting"><label>Show Logo</label><input id="showLogo" type="checkbox" checked></div>
-      <div class="setting"><label>Font size</label><input id="fontSize" type="number" min="20" max="120" value="58"></div>
-      <div class="setting"><label>Max width</label><input id="maxWidth" type="number" min="500" max="2200" value="1500"></div>
-      <div class="setting"><label>Line height</label><input id="lineHeight" type="number" min="1" max="2" step="0.05" value="1.35"></div>
-      <div class="setting"><label>Alignment</label>
-        <select id="align"><option value="center">Center</option><option value="left">Left</option><option value="right">Right</option></select>
-      </div>
-
-      <!-- Preset Theme Selector -->
-      <div class="setting">
-        <label>Preset Theme</label>
-        <select id="themeSelect">
-          <option value="minimal">🌟 Clean Minimal</option>
-          <option value="glass">✨ Glassmorphism</option>
-          <option value="gold">🏆 Gold Accents</option>
-          <option value="contrast">⚡ High Contrast</option>
-        </select>
-      </div>
-
-      <!-- Google Fonts Selector -->
-      <div class="setting">
-        <label>Font Family</label>
-        <select id="fontSelect">
-          <option value="Segoe UI">Default (Segoe UI)</option>
-          <option value="Inter">Inter</option>
-          <option value="Outfit">Outfit</option>
-          <option value="Cinzel">Cinzel</option>
-          <option value="Playfair Display">Playfair Display</option>
-          <option value="Roboto">Roboto</option>
-          <option value="Montserrat">Montserrat</option>
-        </select>
-      </div>
-
-      <div class="setting" style="grid-column:1 / -1;display:flex;align-items:center;gap:7px;margin-top:4px">
-        <label>Background</label>
-        <input id="bgImageInput" type="file" accept="image/*" style="width:auto;flex:1;padding:4px;font-size:12px">
-        <button id="clearBgImage" class="danger" style="display:none;padding:5px 8px;font-size:12px">Remove Bg</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="small" style="padding:2px 3px">
-    Tip: Use <b>Numpad / Digits 1-9</b> to jump to verses directly, or <b>← / →</b> arrow keys to step. Press <b>Enter</b> in search box to search!
-  </div>
-</div>
-
-<script>
-const $ = id => document.getElementById(id);
-const SESSION_KEY = "hymnDockSessionName";
-
-let SESSION_ID = localStorage.getItem(SESSION_KEY) || "default";
-$("sessionInput").value = SESSION_ID;
-updatePreviewIframe();
-
-$("sessionInput").onchange = () => {
-  SESSION_ID = $("sessionInput").value.trim() || "default";
-  $("sessionInput").value = SESSION_ID;
-  localStorage.setItem(SESSION_KEY, SESSION_ID);
-  updatePreviewIframe();
-  status("Switched to session: " + SESSION_ID, "good");
-  restoreState();
-};
-
-function updatePreviewIframe() {
-  $("previewIframe").src = "/display?session=" + encodeURIComponent(SESSION_ID);
-}
-
-function getOrigin() {
-  return window.location.origin;
-}
-
-$("copyDisplay").onclick = () => {
-  const url = `${getOrigin()}/display?session=${SESSION_ID}`;
-  navigator.clipboard.writeText(url).then(() => status("Display URL copied! Paste into OBS.", "good")).catch(() => {
-    prompt("Copy this URL:", url);
-  });
-};
-
-$("copyBottom").onclick = () => {
-  const url = `${getOrigin()}/display_bottom?session=${SESSION_ID}`;
-  navigator.clipboard.writeText(url).then(() => status("Bottom URL copied! Paste into OBS.", "good")).catch(() => {
-    prompt("Copy this URL:", url);
-  });
-};
-
-// ── Helpers & State ──────────────────────────────────────────────────────────
-let hymn = null;
-let currentSectionName = null;
-let currentStanzaNumber = null;
-let activeBtn = null;
-let currentBgImage = localStorage.getItem("hymnDockBgImage") || null;
-
-if (currentBgImage) {
-  $("clearBgImage").style.display = "inline-block";
-}
-
-$("bgImageInput").onchange = (e) => {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
-  status("Processing background image…");
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    const img = new Image();
-    img.onload = () => {
-      const maxW = 1920, maxH = 1080;
-      let w = img.width, h = img.height;
-      if (w > maxW || h > maxH) {
-        const ratio = Math.min(maxW / w, maxH / h);
-        w = Math.round(w * ratio);
-        h = Math.round(h * ratio);
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Hymn Dock</title>
+    <style>
+      :root {
+        --bg: #171a21;
+        --panel: #20242d;
+        --line: #343a48;
+        --text: #f1f3f7;
+        --muted: #aeb5c2;
+        --accent: #6ea8fe;
+        --good: #54d38a;
+        --danger: #ff7b7b;
       }
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, w, h);
-      currentBgImage = canvas.toDataURL("image/jpeg", 0.85);
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Segoe UI,
+          Arial,
+          sans-serif;
+        font-size: 14px;
+      }
+      .wrap {
+        padding: 12px;
+        max-width: 900px;
+        margin: auto;
+      }
+      h1 {
+        font-size: 19px;
+        margin: 0 0 10px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 11px;
+        margin-bottom: 10px;
+      }
+      .row {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+      }
+      input,
+      button,
+      select {
+        font: inherit;
+      }
+      input,
+      select {
+        background: #11141a;
+        color: var(--text);
+        border: 1px solid #464d5d;
+        border-radius: 6px;
+        padding: 8px;
+      }
+      input {
+        width: 100%;
+      }
+      button {
+        border: 0;
+        border-radius: 6px;
+        padding: 8px 11px;
+        background: #3b4252;
+        color: white;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #4a5366;
+      }
+      button:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+      button.primary {
+        background: #3268b5;
+      }
+      button.primary:hover {
+        background: #3e79cc;
+      }
+      button.active {
+        background: #2f9e68;
+      }
+      button.danger {
+        background: #7d3e47;
+      }
+      button.warning {
+        background: #7a6200;
+      }
+      .small {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .status {
+        margin-top: 8px;
+        color: var(--muted);
+        min-height: 18px;
+      }
+      .status.good {
+        color: var(--good);
+      }
+      .status.error {
+        color: var(--danger);
+      }
+      .hymn-title {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 2px;
+      }
+      .section {
+        margin-top: 12px;
+      }
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+      .section-name {
+        font-weight: 700;
+        color: #dbe5f7;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        gap: 6px;
+      }
+      .grid button {
+        padding: 9px 4px;
+      }
+      .settings {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .setting {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .setting label {
+        min-width: 95px;
+        color: var(--muted);
+      }
+      .setting input[type="number"] {
+        width: 90px;
+      }
+      .setting input[type="checkbox"] {
+        width: auto;
+      }
 
-      try {
-        localStorage.setItem("hymnDockBgImage", currentBgImage);
-      } catch(err) {}
+      /* Search results list */
+      .results-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .result-item {
+        background: #181c24;
+        border: 1px solid #323846;
+        border-radius: 6px;
+        padding: 8px 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .result-item:hover {
+        background: #242a37;
+        border-color: var(--accent);
+      }
+      .result-title {
+        font-weight: 600;
+        color: #e2e8f0;
+      }
+      .result-url {
+        font-size: 11px;
+        color: var(--muted);
+        word-break: break-all;
+      }
 
-      $("clearBgImage").style.display = "inline-block";
-      pushSettings();
-      status("Background image applied to display!", "good");
-    };
-    img.onerror = () => {
-      currentBgImage = evt.target.result;
-      $("clearBgImage").style.display = "inline-block";
-      pushSettings();
-      status("Background image applied to display!", "good");
-    };
-    img.src = evt.target.result;
-  };
-  reader.readAsDataURL(file);
-};
+      /* Preview Box */
+      #previewContainer {
+        width: 100%;
+        height: 180px;
+        background: #090a0d;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #previewIframe {
+        width: 1920px;
+        height: 1080px;
+        border: 0;
+        transform: scale(0.16666);
+        transform-origin: top left;
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+      }
 
-$("clearBgImage").onclick = () => {
-  currentBgImage = null;
-  localStorage.removeItem("hymnDockBgImage");
-  $("bgImageInput").value = "";
-  $("clearBgImage").style.display = "none";
-  pushSettings();
-  status("Background image removed.", "good");
-};
+      @media (max-width: 520px) {
+        .grid {
+          grid-template-columns: repeat(5, 1fr);
+        }
+        .settings {
+          grid-template-columns: 1fr;
+        }
+        .row {
+          flex-wrap: wrap;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>🎵 Hymn Dock</h1>
 
-function status(msg, kind="") {
-  $("status").textContent = msg;
-  $("status").className = "status " + kind;
-}
+      <!-- Session info -->
+      <div class="card">
+        <div style="font-weight: 700; margin-bottom: 8px">Session / Room</div>
+        <div class="row">
+          <input
+            id="sessionInput"
+            value="default"
+            placeholder="e.g. default, main, room1"
+            style="max-width: 180px"
+          />
+          <button id="copyDisplay" title="Copy OBS display URL to clipboard">
+            📋 Copy Display URL
+          </button>
+          <button id="copyBottom" title="Copy OBS bottom display URL to clipboard">
+            📋 Copy Bottom URL
+          </button>
+        </div>
+        <div class="small" style="margin-top: 6px">
+          Zero setup: OBS URL is simply <code>/display</code> or
+          <code>/display_bottom</code>. Only change the session name if running multiple
+          separate rooms on one server.
+        </div>
+      </div>
 
-async function api(url, opts={}) {
-  const sep = url.includes("?") ? "&" : "?";
-  const r = await fetch(url + sep + "session=" + encodeURIComponent(SESSION_ID), opts);
-  const data = await r.json();
-  if (!data.ok) throw new Error(data.error || "Request failed");
-  return data;
-}
+      <!-- Live Dock Preview Box -->
+      <div class="card">
+        <div style="font-weight: 700; margin-bottom: 8px">📺 Live Overlay Preview</div>
+        <div id="previewContainer">
+          <iframe id="previewIframe" src="/display?session=default"></iframe>
+        </div>
+      </div>
 
-// ── Hymn loading ─────────────────────────────────────────────────────────────
+      <!-- Hymn search -->
+      <div class="card">
+        <div class="row">
+          <select
+            id="langSelect"
+            style="max-width: 140px"
+            title="Filter search by language"
+          >
+            <option value="all">🌐 All Languages</option>
+            <option value="eng">🇬🇧 English</option>
+            <option value="yor">🇳🇬 Yorùbá</option>
+          </select>
+          <input
+            id="number"
+            placeholder="Enter hymn number or title (e.g. 235 or Amazing Grace)"
+          />
+          <button class="primary" id="load">LOAD</button>
+        </div>
+        <div class="row" style="margin-top: 7px">
+          <input
+            id="url"
+            placeholder="Or paste a Treasure Hymns URL (Yoruba, English, CAC, Anglican, etc.)"
+          />
+          <button id="loadUrl">URL</button>
+        </div>
+        <div id="status" class="status">Ready.</div>
+      </div>
 
-async function loadHymn(params) {
-  status("Searching & loading hymn…");
-  $("searchResultsCard").hidden = true;
-  try {
-    const lang = $("langSelect").value;
-    params.lang = lang;
-    const qs = new URLSearchParams(params).toString();
-    const data = await api("/api/v1/hymn?" + qs);
+      <!-- Search Results Selection Card -->
+      <div class="card" id="searchResultsCard" hidden>
+        <div style="font-weight: 700; margin-bottom: 6px">
+          Multiple Results Found — Click one to load:
+        </div>
+        <div class="results-list" id="resultsList"></div>
+      </div>
 
-    if (data.multiple && data.results && data.results.length > 0) {
-      renderSearchResults(data.results);
-      status(`Found ${data.results.length} matching hymns. Click one to select.`, "good");
-      return;
-    }
+      <!-- Hymn stanza picker -->
+      <div class="card" id="hymnCard" hidden>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px">
+          <div class="hymn-title" id="title" style="flex: 1"></div>
+          <button
+            class="warning"
+            id="refresh"
+            title="Force re-scrape this hymn from the website"
+          >
+            🔄 Refresh
+          </button>
+        </div>
+        <div class="small" id="source"></div>
+        <div id="sections"></div>
 
-    hymn = data.hymn;
-    currentSectionName = null;
-    currentStanzaNumber = null;
-    renderHymn();
-    status("Loaded: " + hymn.title, "good");
-  } catch(e) {
-    status(e.message, "error");
-  }
-}
+        <!-- Verse navigation bar -->
+        <div
+          class="row"
+          style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--line)"
+        >
+          <button
+            class="primary"
+            id="prevVerse"
+            title="Keyboard: Left Arrow / Up Arrow"
+            disabled
+          >
+            ⏮ Prev Verse
+          </button>
+          <button
+            class="primary"
+            id="nextVerse"
+            title="Keyboard: Right Arrow / Down Arrow"
+          >
+            Next Verse ⏭
+          </button>
+          <button class="danger" id="clear" style="margin-left: auto">
+            CLEAR DISPLAY
+          </button>
+        </div>
 
-function renderSearchResults(results) {
-  $("searchResultsCard").hidden = false;
-  const container = $("resultsList");
-  container.innerHTML = "";
-  for (const item of results) {
-    const div = document.createElement("div");
-    div.className = "result-item";
-    div.onclick = () => {
-      loadHymn({ url: item.url });
-    };
-    // Prefetch on hover so selecting is instant
-    div.onmouseenter = () => {
-      try {
-        fetch(
-          "/api/v1/hymn?url=" + encodeURIComponent(item.url) +
-            "&direct=true&session=" + encodeURIComponent(SESSION_ID),
-        ).catch(() => {});
-      } catch (e) {}
-    };
-    div.innerHTML = `
+        <!-- Hymn navigation bar -->
+        <div class="row" style="margin-top: 8px">
+          <button id="prevHymn">← Prev Hymn</button>
+          <button id="nextHymn">Next Hymn →</button>
+        </div>
+      </div>
+
+      <!-- Display settings -->
+      <div class="card">
+        <div style="font-weight: 700; margin-bottom: 8px">Display Settings</div>
+        <div class="settings">
+          <div class="setting">
+            <label>Title</label><input id="showTitle" type="checkbox" />
+          </div>
+          <div class="setting">
+            <label>Hymn number</label><input id="showNumber" type="checkbox" checked />
+          </div>
+          <div class="setting">
+            <label>Section</label><input id="showSection" type="checkbox" checked />
+          </div>
+          <div class="setting">
+            <label>Show Logo</label><input id="showLogo" type="checkbox" checked />
+          </div>
+          <div class="setting">
+            <label>Font size</label
+            ><input id="fontSize" type="number" min="20" max="120" value="58" />
+          </div>
+          <div class="setting">
+            <label>Max width</label
+            ><input id="maxWidth" type="number" min="500" max="2200" value="1500" />
+          </div>
+          <div class="setting">
+            <label>Line height</label
+            ><input
+              id="lineHeight"
+              type="number"
+              min="1"
+              max="2"
+              step="0.05"
+              value="1.35"
+            />
+          </div>
+          <div class="setting">
+            <label>Alignment</label>
+            <select id="align">
+              <option value="center">Center</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+
+          <!-- Preset Theme Selector -->
+          <div class="setting">
+            <label>Preset Theme</label>
+            <select id="themeSelect">
+              <option value="minimal">🌟 Clean Minimal</option>
+              <option value="glass">✨ Glassmorphism</option>
+              <option value="gold">🏆 Gold Accents</option>
+              <option value="contrast">⚡ High Contrast</option>
+            </select>
+          </div>
+
+          <!-- Google Fonts Selector -->
+          <div class="setting">
+            <label>Font Family</label>
+            <select id="fontSelect">
+              <option value="Segoe UI">Default (Segoe UI)</option>
+              <option value="Inter">Inter</option>
+              <option value="Outfit">Outfit</option>
+              <option value="Cinzel">Cinzel</option>
+              <option value="Playfair Display">Playfair Display</option>
+              <option value="Roboto">Roboto</option>
+              <option value="Montserrat">Montserrat</option>
+            </select>
+          </div>
+
+          <div
+            class="setting"
+            style="
+              grid-column: 1 / -1;
+              display: flex;
+              align-items: center;
+              gap: 7px;
+              margin-top: 4px;
+            "
+          >
+            <label>Background</label>
+            <input
+              id="bgImageInput"
+              type="file"
+              accept="image/*"
+              style="width: auto; flex: 1; padding: 4px; font-size: 12px"
+            />
+            <button
+              id="clearBgImage"
+              class="danger"
+              style="display: none; padding: 5px 8px; font-size: 12px"
+            >
+              Remove Bg
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="small" style="padding: 2px 3px">
+        Tip: Use <b>Numpad / Digits 1-9</b> to jump to verses directly, or
+        <b>← / →</b> arrow keys to step. Press <b>Enter</b> in search box to search!
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const SESSION_KEY = "hymnDockSessionName";
+
+      let SESSION_ID = localStorage.getItem(SESSION_KEY) || "default";
+      $("sessionInput").value = SESSION_ID;
+      updatePreviewIframe();
+
+      $("sessionInput").onchange = () => {
+        SESSION_ID = $("sessionInput").value.trim() || "default";
+        $("sessionInput").value = SESSION_ID;
+        localStorage.setItem(SESSION_KEY, SESSION_ID);
+        updatePreviewIframe();
+        status("Switched to session: " + SESSION_ID, "good");
+        restoreState();
+      };
+
+      function updatePreviewIframe() {
+        $("previewIframe").src = "/display?session=" + encodeURIComponent(SESSION_ID);
+      }
+
+      function getOrigin() {
+        return window.location.origin;
+      }
+
+      $("copyDisplay").onclick = () => {
+        const url = `${getOrigin()}/display?session=${SESSION_ID}`;
+        navigator.clipboard
+          .writeText(url)
+          .then(() => status("Display URL copied! Paste into OBS.", "good"))
+          .catch(() => {
+            prompt("Copy this URL:", url);
+          });
+      };
+
+      $("copyBottom").onclick = () => {
+        const url = `${getOrigin()}/display_bottom?session=${SESSION_ID}`;
+        navigator.clipboard
+          .writeText(url)
+          .then(() => status("Bottom URL copied! Paste into OBS.", "good"))
+          .catch(() => {
+            prompt("Copy this URL:", url);
+          });
+      };
+
+      // ── Helpers & State ──────────────────────────────────────────────────────────
+      let hymn = null;
+      let currentSectionName = null;
+      let currentStanzaNumber = null;
+      let activeBtn = null;
+      let currentBgImage = localStorage.getItem("hymnDockBgImage") || null;
+
+      if (currentBgImage) {
+        $("clearBgImage").style.display = "inline-block";
+      }
+
+      $("bgImageInput").onchange = (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        status("Processing background image…");
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxW = 1920,
+              maxH = 1080;
+            let w = img.width,
+              h = img.height;
+            if (w > maxW || h > maxH) {
+              const ratio = Math.min(maxW / w, maxH / h);
+              w = Math.round(w * ratio);
+              h = Math.round(h * ratio);
+            }
+            const canvas = document.createElement("canvas");
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, w, h);
+            currentBgImage = canvas.toDataURL("image/jpeg", 0.85);
+
+            try {
+              localStorage.setItem("hymnDockBgImage", currentBgImage);
+            } catch (err) {}
+
+            $("clearBgImage").style.display = "inline-block";
+            pushSettings();
+            status("Background image applied to display!", "good");
+          };
+          img.onerror = () => {
+            currentBgImage = evt.target.result;
+            $("clearBgImage").style.display = "inline-block";
+            pushSettings();
+            status("Background image applied to display!", "good");
+          };
+          img.src = evt.target.result;
+        };
+        reader.readAsDataURL(file);
+      };
+
+      $("clearBgImage").onclick = () => {
+        currentBgImage = null;
+        localStorage.removeItem("hymnDockBgImage");
+        $("bgImageInput").value = "";
+        $("clearBgImage").style.display = "none";
+        pushSettings();
+        status("Background image removed.", "good");
+      };
+
+      function status(msg, kind = "") {
+        $("status").textContent = msg;
+        $("status").className = "status " + kind;
+      }
+
+      async function api(url, opts = {}) {
+        setBusy(true);
+        try {
+          const sep = url.includes("?") ? "&" : "?";
+          const r = await fetch(
+            url + sep + "session=" + encodeURIComponent(SESSION_ID),
+            opts,
+          );
+          const data = await r.json();
+          if (!data.ok) throw new Error(data.error || "Request failed");
+          return data;
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      let __busyCount = 0;
+      function setBusy(isBusy) {
+        try {
+          if (isBusy) {
+            __busyCount = Math.max(0, __busyCount) + 1;
+          } else {
+            __busyCount = Math.max(0, __busyCount - 1);
+          }
+
+          const disabled = __busyCount > 0;
+          const buttons = document.querySelectorAll("button");
+          buttons.forEach((b) => {
+            try {
+              b.disabled = disabled;
+            } catch (e) {}
+          });
+        } catch (e) {}
+      }
+
+      // ── Hymn loading ─────────────────────────────────────────────────────────────
+
+      async function loadHymn(params) {
+        status("Searching & loading hymn…");
+        $("searchResultsCard").hidden = true;
+        try {
+          const lang = $("langSelect").value;
+          params.lang = lang;
+          const qs = new URLSearchParams(params).toString();
+          const data = await api("/api/v1/hymn?" + qs);
+
+          if (data.multiple && data.results && data.results.length > 0) {
+            renderSearchResults(data.results);
+            status(
+              `Found ${data.results.length} matching hymns. Click one to select.`,
+              "good",
+            );
+            return;
+          }
+
+          hymn = data.hymn;
+          currentSectionName = null;
+          currentStanzaNumber = null;
+          renderHymn();
+          status("Loaded: " + hymn.title, "good");
+        } catch (e) {
+          status(e.message, "error");
+        }
+      }
+
+      function renderSearchResults(results) {
+        $("searchResultsCard").hidden = false;
+        const container = $("resultsList");
+        container.innerHTML = "";
+        for (const item of results) {
+          const div = document.createElement("div");
+          div.className = "result-item";
+          div.onclick = () => {
+            loadHymn({ url: item.url });
+          };
+          // Prefetch on hover so selecting is instant
+          div.onmouseenter = () => {
+            try {
+              fetch(
+                "/api/v1/hymn?url=" +
+                  encodeURIComponent(item.url) +
+                  "&direct=true&session=" +
+                  encodeURIComponent(SESSION_ID),
+              ).catch(() => {});
+            } catch (e) {}
+          };
+          div.innerHTML = `
       <div>
         <div class="result-title">${escapeHtml(item.title)}</div>
         <div class="result-url">${escapeHtml(item.url)}</div>
       </div>
       <button class="primary" style="padding:4px 8px;font-size:12px">Select</button>
     `;
-    container.appendChild(div);
-  }
-}
-
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
-}
-
-function renderHymn() {
-  if (!hymn) return;
-  $("hymnCard").hidden = false;
-  $("title").textContent = hymn.title;
-  $("source").textContent = hymn.url;
-  const container = $("sections");
-  container.innerHTML = "";
-  for (const [name, stanzas] of Object.entries(hymn.sections)) {
-    const sec = document.createElement("div");
-    sec.className = "section";
-    const head = document.createElement("div");
-    head.className = "section-head";
-    const nameEl = document.createElement("span");
-    nameEl.className = "section-name";
-    nameEl.textContent = name;
-    head.appendChild(nameEl);
-    sec.appendChild(head);
-    const grid = document.createElement("div");
-    grid.className = "grid";
-    for (const stanza of stanzas) {
-      const btn = document.createElement("button");
-      btn.textContent = stanza.number;
-      btn.title = stanza.lines.join("\n");
-      btn.id = `stanza-${name}-${stanza.number}`;
-      btn.onclick = () => selectStanza(name, stanza.number, btn);
-      grid.appendChild(btn);
-    }
-    sec.appendChild(grid);
-    container.appendChild(sec);
-  }
-  updateNavButtons();
-}
-
-async function selectStanza(section, number, btn) {
-  currentSectionName = section;
-  currentStanzaNumber = number;
-  if (activeBtn) activeBtn.classList.remove("active");
-
-  if (!btn) {
-    btn = document.getElementById(`stanza-${section}-${number}`);
-  }
-  if (btn) {
-    activeBtn = btn;
-    btn.classList.add("active");
-    btn.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }
-
-  updateNavButtons();
-
-  try {
-    await api("/api/v1/state", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({hymn, section, stanza: number})
-    });
-  } catch(e) {
-    status("State update failed: " + e.message, "error");
-  }
-}
-
-// ── Verse & Hymn Navigation state updater ───────────────────────────────────
-
-function getAllStanzas() {
-  if (!hymn || !hymn.sections) return [];
-  const list = [];
-  for (const [secName, stanzas] of Object.entries(hymn.sections)) {
-    for (const st of stanzas) {
-      list.push({ section: secName, number: Number(st.number) });
-    }
-  }
-  return list;
-}
-
-function updateNavButtons() {
-  const list = getAllStanzas();
-  const prevVerseBtn = $("prevVerse");
-  const nextVerseBtn = $("nextVerse");
-
-  if (prevVerseBtn && nextVerseBtn) {
-    if (list.length === 0) {
-      prevVerseBtn.disabled = true;
-      nextVerseBtn.disabled = true;
-    } else {
-      const currentIndex = list.findIndex(
-        item => item.section === currentSectionName && Number(item.number) === Number(currentStanzaNumber)
-      );
-
-      if (currentIndex === -1) {
-        prevVerseBtn.disabled = true;
-        nextVerseBtn.disabled = false;
-      } else {
-        prevVerseBtn.disabled = (currentIndex <= 0);
-        nextVerseBtn.disabled = (currentIndex >= list.length - 1);
+          container.appendChild(div);
+        }
       }
-    }
-  }
 
-  const prevHymnBtn = $("prevHymn");
-  const nextHymnBtn = $("nextHymn");
-  if (prevHymnBtn && nextHymnBtn) {
-    if (!hymn) {
-      prevHymnBtn.disabled = true;
-      nextHymnBtn.disabled = true;
-    } else {
-      prevHymnBtn.disabled = !hymn.previous;
-      nextHymnBtn.disabled = !hymn.next;
-    }
-  }
-}
-
-function navigateVerse(dir) {
-  const list = getAllStanzas();
-  if (list.length === 0) return;
-
-  let currentIndex = list.findIndex(
-    item => item.section === currentSectionName && Number(item.number) === Number(currentStanzaNumber)
-  );
-
-  let targetIndex = -1;
-  if (dir === "next") {
-    if (currentIndex === -1) targetIndex = 0;
-    else if (currentIndex < list.length - 1) targetIndex = currentIndex + 1;
-  } else if (dir === "prev") {
-    if (currentIndex === -1) targetIndex = list.length - 1;
-    else if (currentIndex > 0) targetIndex = currentIndex - 1;
-  }
-
-  if (targetIndex >= 0 && targetIndex < list.length) {
-    const target = list[targetIndex];
-    selectStanza(target.section, target.number);
-  }
-}
-
-function jumpToVerseNumber(num) {
-  const list = getAllStanzas();
-  const target = list.find(item => item.number === num);
-  if (target) {
-    selectStanza(target.section, target.number);
-  }
-}
-
-// ── Clear & Settings ─────────────────────────────────────────────────────────
-
-async function clearDisplay() {
-  try {
-    await api("/api/v1/state", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({hymn: null, section: null, stanza: null})
-    });
-    if (activeBtn) activeBtn.classList.remove("active");
-    activeBtn = null;
-    currentSectionName = null;
-    currentStanzaNumber = null;
-    updateNavButtons();
-    status("Display cleared.", "good");
-  } catch(e) {
-    status("Clear failed: " + e.message, "error");
-  }
-}
-
-async function pushSettings() {
-  const settings = {
-    show_title: $("showTitle"),
-    show_hymn_number: $("showNumber").checked,
-    show_section: $("showSection").checked,
-    show_logo: $("showLogo").checked,
-    font_size: Number($("fontSize").value),
-    max_width: Number($("maxWidth").value),
-    line_height: Number($("lineHeight").value),
-    text_align: $("align").value,
-    theme: $("themeSelect").value,
-    font_family: $("fontSelect").value,
-    bg_image: currentBgImage
-  };
-  try {
-    await api("/api/v1/state", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({settings})
-    });
-  } catch(e) {}
-}
-
-async function navigateHymn(dir) {
-  if (!hymn) return;
-  const url = dir === "prev" ? hymn.previous : hymn.next;
-  if (!url) { status("No " + dir + " hymn.", "error"); return; }
-  await loadHymn({url});
-}
-
-// ── Refresh (cache bust) ──────────────────────────────────────────────────────
-
-$("refresh").onclick = async () => {
-  if (!hymn) return;
-  status("Re-fetching hymn from website…");
-  try {
-    const r = await fetch(
-      "/api/v1/hymn/cache?session=" + encodeURIComponent(SESSION_ID) +
-      "&url=" + encodeURIComponent(hymn.url),
-      { method: "DELETE" }
-    );
-    const data = await r.json();
-    if (!data.ok) throw new Error(data.error);
-    hymn = data.hymn;
-    renderHymn();
-    status("Refreshed: " + hymn.title, "good");
-  } catch(e) {
-    status("Refresh failed: " + e.message, "error");
-  }
-};
-
-// ── Event listeners & Enter key support ──────────────────────────────────────
-
-$("load").onclick = () => {
-  const n = $("number").value.trim();
-  if (!n) { status("Enter a hymn number or title.", "error"); return; }
-  loadHymn({number: n});
-};
-$("loadUrl").onclick = () => {
-  const u = $("url").value.trim();
-  if (!u) { status("Enter a URL.", "error"); return; }
-  loadHymn({url: u});
-};
-
-// Enter key support for input boxes
-$("number").onkeydown = (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    $("load").click();
-  }
-};
-
-$("url").onkeydown = (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    $("loadUrl").click();
-  }
-};
-
-// Verse stepping
-$("prevVerse").onclick = () => navigateVerse("prev");
-$("nextVerse").onclick = () => navigateVerse("next");
-
-// Hymn stepping
-$("prevHymn").onclick = () => navigateHymn("prev");
-$("nextHymn").onclick = () => navigateHymn("next");
-
-$("clear").onclick = clearDisplay;
-
-["showTitle","showNumber","showSection","showLogo","fontSize","maxWidth","lineHeight","align","themeSelect","fontSelect"].forEach(id => {
-  $(id).addEventListener("change", pushSettings);
-});
-
-// Keyboard shortcuts (Numpad / Digits 1-9 to jump to verses, Arrow keys to step)
-window.addEventListener("keydown", (e) => {
-  const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
-  if (tag === "input" || tag === "select" || tag === "textarea") return;
-
-  if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-    if (!$("nextVerse").disabled) {
-      e.preventDefault();
-      navigateVerse("next");
-    }
-  } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-    if (!$("prevVerse").disabled) {
-      e.preventDefault();
-      navigateVerse("prev");
-    }
-  } else if (e.key === "Escape") {
-    clearDisplay();
-  } else if (/^[1-9]$/.test(e.key)) {
-    const digit = parseInt(e.key, 10);
-    jumpToVerseNumber(digit);
-  }
-});
-
-// ── Restore state on load ─────────────────────────────────────────────────────
-
-async function restoreState() {
-  try {
-    const data = await api("/api/v1/state");
-    const s = data.state.settings;
-    if (s) {
-      $("showTitle").checked = s.show_title ?? false;
-      $("showNumber").checked = s.show_hymn_number ?? true;
-      $("showSection").checked = s.show_section ?? true;
-      $("showLogo").checked = s.show_logo ?? true;
-      $("fontSize").value = s.font_size ?? 58;
-      $("maxWidth").value = s.max_width ?? 1500;
-      $("lineHeight").value = s.line_height ?? 1.35;
-      $("align").value = s.text_align ?? "center";
-      $("themeSelect").value = s.theme ?? "minimal";
-      $("fontSelect").value = s.font_family ?? "Segoe UI";
-      if (s.bg_image) {
-        currentBgImage = s.bg_image;
-        $("clearBgImage").style.display = "inline-block";
+      function escapeHtml(s) {
+        return String(s).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c],
+        );
       }
-    }
-    if (data.state.hymn) {
-      hymn = data.state.hymn;
-      currentSectionName = data.state.section;
-      currentStanzaNumber = data.state.stanza;
-      renderHymn();
-      if (currentSectionName && currentStanzaNumber != null) {
-        const btn = document.getElementById(`stanza-${currentSectionName}-${currentStanzaNumber}`);
+
+      function renderHymn() {
+        if (!hymn) return;
+        $("hymnCard").hidden = false;
+        $("title").textContent = hymn.title;
+        $("source").textContent = hymn.url;
+        const container = $("sections");
+        container.innerHTML = "";
+        for (const [name, stanzas] of Object.entries(hymn.sections)) {
+          const sec = document.createElement("div");
+          sec.className = "section";
+          const head = document.createElement("div");
+          head.className = "section-head";
+          const nameEl = document.createElement("span");
+          nameEl.className = "section-name";
+          nameEl.textContent = name;
+          head.appendChild(nameEl);
+          sec.appendChild(head);
+          const grid = document.createElement("div");
+          grid.className = "grid";
+          for (const stanza of stanzas) {
+            const btn = document.createElement("button");
+            btn.textContent = stanza.number;
+            btn.title = stanza.lines.join("\n");
+            btn.id = `stanza-${name}-${stanza.number}`;
+            btn.onclick = () => selectStanza(name, stanza.number, btn);
+            grid.appendChild(btn);
+          }
+          sec.appendChild(grid);
+          container.appendChild(sec);
+        }
+        updateNavButtons();
+      }
+
+      async function selectStanza(section, number, btn) {
+        currentSectionName = section;
+        currentStanzaNumber = number;
+        if (activeBtn) activeBtn.classList.remove("active");
+
+        if (!btn) {
+          btn = document.getElementById(`stanza-${section}-${number}`);
+        }
         if (btn) {
           activeBtn = btn;
           btn.classList.add("active");
+          btn.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+
+        updateNavButtons();
+
+        try {
+          await api("/api/v1/state", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hymn, section, stanza: number }),
+          });
+        } catch (e) {
+          status("State update failed: " + e.message, "error");
         }
       }
-      updateNavButtons();
-    } else {
-      $("hymnCard").hidden = true;
-    }
-  } catch(e) {}
-}
 
-restoreState();
-</script>
-</body>
+      // ── Verse & Hymn Navigation state updater ───────────────────────────────────
+
+      function getAllStanzas() {
+        if (!hymn || !hymn.sections) return [];
+        const list = [];
+        for (const [secName, stanzas] of Object.entries(hymn.sections)) {
+          for (const st of stanzas) {
+            list.push({ section: secName, number: Number(st.number) });
+          }
+        }
+        return list;
+      }
+
+      function updateNavButtons() {
+        const list = getAllStanzas();
+        const prevVerseBtn = $("prevVerse");
+        const nextVerseBtn = $("nextVerse");
+
+        if (prevVerseBtn && nextVerseBtn) {
+          if (list.length === 0) {
+            prevVerseBtn.disabled = true;
+            nextVerseBtn.disabled = true;
+          } else {
+            const currentIndex = list.findIndex(
+              (item) =>
+                item.section === currentSectionName &&
+                Number(item.number) === Number(currentStanzaNumber),
+            );
+
+            if (currentIndex === -1) {
+              prevVerseBtn.disabled = true;
+              nextVerseBtn.disabled = false;
+            } else {
+              prevVerseBtn.disabled = currentIndex <= 0;
+              nextVerseBtn.disabled = currentIndex >= list.length - 1;
+            }
+          }
+        }
+
+        const prevHymnBtn = $("prevHymn");
+        const nextHymnBtn = $("nextHymn");
+        if (prevHymnBtn && nextHymnBtn) {
+          if (!hymn) {
+            prevHymnBtn.disabled = true;
+            nextHymnBtn.disabled = true;
+          } else {
+            prevHymnBtn.disabled = !hymn.previous;
+            nextHymnBtn.disabled = !hymn.next;
+          }
+        }
+      }
+
+      function navigateVerse(dir) {
+        const list = getAllStanzas();
+        if (list.length === 0) return;
+
+        let currentIndex = list.findIndex(
+          (item) =>
+            item.section === currentSectionName &&
+            Number(item.number) === Number(currentStanzaNumber),
+        );
+
+        let targetIndex = -1;
+        if (dir === "next") {
+          if (currentIndex === -1) targetIndex = 0;
+          else if (currentIndex < list.length - 1) targetIndex = currentIndex + 1;
+        } else if (dir === "prev") {
+          if (currentIndex === -1) targetIndex = list.length - 1;
+          else if (currentIndex > 0) targetIndex = currentIndex - 1;
+        }
+
+        if (targetIndex >= 0 && targetIndex < list.length) {
+          const target = list[targetIndex];
+          selectStanza(target.section, target.number);
+        }
+      }
+
+      function jumpToVerseNumber(num) {
+        const list = getAllStanzas();
+        const target = list.find((item) => item.number === num);
+        if (target) {
+          selectStanza(target.section, target.number);
+        }
+      }
+
+      // ── Clear & Settings ─────────────────────────────────────────────────────────
+
+      async function clearDisplay() {
+        try {
+          await api("/api/v1/state", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hymn: null, section: null, stanza: null }),
+          });
+          if (activeBtn) activeBtn.classList.remove("active");
+          activeBtn = null;
+          currentSectionName = null;
+          currentStanzaNumber = null;
+          updateNavButtons();
+          status("Display cleared.", "good");
+        } catch (e) {
+          status("Clear failed: " + e.message, "error");
+        }
+      }
+
+      async function pushSettings() {
+        const settings = {
+          show_title: $("showTitle"),
+          show_hymn_number: $("showNumber").checked,
+          show_section: $("showSection").checked,
+          show_logo: $("showLogo").checked,
+          font_size: Number($("fontSize").value),
+          max_width: Number($("maxWidth").value),
+          line_height: Number($("lineHeight").value),
+          text_align: $("align").value,
+          theme: $("themeSelect").value,
+          font_family: $("fontSelect").value,
+          bg_image: currentBgImage,
+        };
+        try {
+          await api("/api/v1/state", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ settings }),
+          });
+        } catch (e) {}
+      }
+
+      async function navigateHymn(dir) {
+        if (!hymn) return;
+        const url = dir === "prev" ? hymn.previous : hymn.next;
+        if (!url) {
+          status("No " + dir + " hymn.", "error");
+          return;
+        }
+        await loadHymn({ url });
+      }
+
+      // ── Refresh (cache bust) ──────────────────────────────────────────────────────
+
+      $("refresh").onclick = async () => {
+        if (!hymn) return;
+        status("Re-fetching hymn from website…");
+        setBusy(true);
+        try {
+          const r = await fetch(
+            "/api/v1/hymn/cache?session=" +
+              encodeURIComponent(SESSION_ID) +
+              "&url=" +
+              encodeURIComponent(hymn.url),
+            { method: "DELETE" },
+          );
+          const data = await r.json();
+          if (!data.ok) throw new Error(data.error);
+          hymn = data.hymn;
+          renderHymn();
+          status("Refreshed: " + hymn.title, "good");
+        } catch (e) {
+          status("Refresh failed: " + e.message, "error");
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      // ── Event listeners & Enter key support ──────────────────────────────────────
+
+      $("load").onclick = () => {
+        const n = $("number").value.trim();
+        if (!n) {
+          status("Enter a hymn number or title.", "error");
+          return;
+        }
+        loadHymn({ number: n });
+      };
+      $("loadUrl").onclick = () => {
+        const u = $("url").value.trim();
+        if (!u) {
+          status("Enter a URL.", "error");
+          return;
+        }
+        loadHymn({ url: u });
+      };
+
+      // Enter key support for input boxes
+      $("number").onkeydown = (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          $("load").click();
+        }
+      };
+
+      $("url").onkeydown = (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          $("loadUrl").click();
+        }
+      };
+
+      // Verse stepping
+      $("prevVerse").onclick = () => navigateVerse("prev");
+      $("nextVerse").onclick = () => navigateVerse("next");
+
+      // Hymn stepping
+      $("prevHymn").onclick = () => navigateHymn("prev");
+      $("nextHymn").onclick = () => navigateHymn("next");
+
+      $("clear").onclick = clearDisplay;
+
+      [
+        "showTitle",
+        "showNumber",
+        "showSection",
+        "showLogo",
+        "fontSize",
+        "maxWidth",
+        "lineHeight",
+        "align",
+        "themeSelect",
+        "fontSelect",
+      ].forEach((id) => {
+        $(id).addEventListener("change", pushSettings);
+      });
+
+      // Keyboard shortcuts (Numpad / Digits 1-9 to jump to verses, Arrow keys to step)
+      window.addEventListener("keydown", (e) => {
+        const tag = document.activeElement
+          ? document.activeElement.tagName.toLowerCase()
+          : "";
+        if (tag === "input" || tag === "select" || tag === "textarea") return;
+
+        if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+          if (!$("nextVerse").disabled) {
+            e.preventDefault();
+            navigateVerse("next");
+          }
+        } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+          if (!$("prevVerse").disabled) {
+            e.preventDefault();
+            navigateVerse("prev");
+          }
+        } else if (e.key === "Escape") {
+          clearDisplay();
+        } else if (/^[1-9]$/.test(e.key)) {
+          const digit = parseInt(e.key, 10);
+          jumpToVerseNumber(digit);
+        }
+      });
+
+      // ── Restore state on load ─────────────────────────────────────────────────────
+
+      async function restoreState() {
+        try {
+          const data = await api("/api/v1/state");
+          const s = data.state.settings;
+          if (s) {
+            $("showTitle").checked = s.show_title ?? false;
+            $("showNumber").checked = s.show_hymn_number ?? true;
+            $("showSection").checked = s.show_section ?? true;
+            $("showLogo").checked = s.show_logo ?? true;
+            $("fontSize").value = s.font_size ?? 58;
+            $("maxWidth").value = s.max_width ?? 1500;
+            $("lineHeight").value = s.line_height ?? 1.35;
+            $("align").value = s.text_align ?? "center";
+            $("themeSelect").value = s.theme ?? "minimal";
+            $("fontSelect").value = s.font_family ?? "Segoe UI";
+            if (s.bg_image) {
+              currentBgImage = s.bg_image;
+              $("clearBgImage").style.display = "inline-block";
+            }
+          }
+          if (data.state.hymn) {
+            hymn = data.state.hymn;
+            currentSectionName = data.state.section;
+            currentStanzaNumber = data.state.stanza;
+            renderHymn();
+            if (currentSectionName && currentStanzaNumber != null) {
+              const btn = document.getElementById(
+                `stanza-${currentSectionName}-${currentStanzaNumber}`,
+              );
+              if (btn) {
+                activeBtn = btn;
+                btn.classList.add("active");
+              }
+            }
+            updateNavButtons();
+          } else {
+            $("hymnCard").hidden = true;
+          }
+        } catch (e) {}
+      }
+
+      restoreState();
+    </script>
+  </body>
 </html>
