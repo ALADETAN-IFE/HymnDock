@@ -459,6 +459,30 @@ const stmtSetHymnCache = db.prepare<[string, number | null, string]>(
   "INSERT OR REPLACE INTO hymn_cache (url, number, data, cached_at) VALUES (?, ?, ?, unixepoch())",
 );
 
+export function getCachedHymnUrl(number: number | string): string | null {
+  const cached = stmtGetUrlCache.get(String(number).trim());
+  return cached?.url ?? null;
+}
+
+export function isHymnCached(url: string): boolean {
+  return stmtGetHymnCache.get(url) != null;
+}
+
+const neighborPrefetchInFlight = new Set<string>();
+
+/** Warm previous/next hymn pages in the background so sequential navigation is instant. */
+export function prefetchNeighbors(hymn: HymnData): void {
+  for (const neighborUrl of [hymn.previous, hymn.next]) {
+    if (!neighborUrl || neighborPrefetchInFlight.has(neighborUrl) || isHymnCached(neighborUrl)) {
+      continue;
+    }
+    neighborPrefetchInFlight.add(neighborUrl);
+    void parseHymn(neighborUrl)
+      .catch(() => undefined)
+      .finally(() => neighborPrefetchInFlight.delete(neighborUrl));
+  }
+}
+
 export async function parseHymn(url: string): Promise<HymnData> {
   // 1. Check SQLite cache first — instant if already scraped
   const cached = stmtGetHymnCache.get(url);
