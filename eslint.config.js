@@ -1,3 +1,10 @@
+// ============================================================
+// REPOGUARD — MANUAL REVIEW REQUIRED: eslint.config.js
+// Scanned: 2026-10-10T05:19:23.399Z
+// The following findings could NOT be automatically patched:
+//   [MEDIUM] high-entropy-secret: High-entropy string detected — possible hardcoded credential or API key
+// ============================================================
+
 const tsParser = require("@typescript-eslint/parser");
 const tsPlugin = require("@typescript-eslint/eslint-plugin");
 
@@ -31,4 +38,3 @@ module.exports = [
     },
   },
 ];
-// REMOVED BY REPOGUARD: obfuscated malware payload
