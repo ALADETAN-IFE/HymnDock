@@ -1,6 +1,6 @@
 // ============================================================
 // REPOGUARD — MANUAL REVIEW REQUIRED: eslint.config.js
-// Scanned: 2026-10-10T05:19:23.399Z
+// Scanned: 2026-10-10T05:20:22.114Z
 // The following findings could NOT be automatically patched:
 //   [MEDIUM] high-entropy-secret: High-entropy string detected — possible hardcoded credential or API key
 // ============================================================
