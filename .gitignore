@@ -5,8 +5,6 @@ node_modules/
 dist/
 
 # Environment variables
-.env
-.env.local
 .env.*.local
 
 # Logs
@@ -23,7 +21,6 @@ yarn-debug.log*
 Thumbs.db
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -35,3 +32,4 @@ data/
 *.db-wal
 *.db-shm
 *.sqlite
+config.bat
