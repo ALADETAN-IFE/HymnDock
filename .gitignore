@@ -32,4 +32,3 @@ data/
 *.db-wal
 *.db-shm
 *.sqlite
-config.bat
